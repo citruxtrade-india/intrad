@@ -1,0 +1,10 @@
+*.log
+.venv/
+__pycache__/
+*.csv
+.env
+.ipynb_checkpoints/
+*.pkl
+node_modules/
+dist/
+build/
