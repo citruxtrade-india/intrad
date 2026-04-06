@@ -1,0 +1,2 @@
+Length: 111
+Full Response: Strategic Insight Paused: Awaiting API quota refresh or plan upgrade. Core system operations remain unaffected.

@@ -1,0 +1,3 @@
+Agent Initialized: ACTIVE
+Testing generation...
+Response: As an Institutional Trading

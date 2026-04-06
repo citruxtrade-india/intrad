@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intraday AI | Algo Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css?v=6">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/app.js?v=6" defer></script>
+</head>
+
+<body class="dark-theme">
+
+    <!-- --- AUTHENTICATION OVERLAY --- -->
+    <div id="auth-layer" class="auth-overlay">
+        <!-- Login Card -->
+        <div id="card-login" class="auth-card">
+            <div class="auth-header">
+                <div class="auth-logo">Intraday AI</div>
+                <div class="auth-subtitle"> Futures Trading Access</div>
+            </div>
+            <div class="form-group">
+                <label>Email or Mobile</label>
+                <input type="text" id="login-id" placeholder="trader@institutional.com">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="login-pass" placeholder="••••••••">
+            </div>
+            <div class="auth-options">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="remember-me"> Remember Me
+                </label>
+                <span class="auth-link" onclick="showAuthPage('forgot')">Forgot Password?</span>
+            </div>
+            <button class="auth-btn" onclick="handleLogin()">SECURE LOGIN</button>
+            <div class="auth-links">
+                <span class="auth-link" onclick="showAuthPage('register')">New to Intraday AI? Create Account</span>
+            </div>
+        </div>
+
+        <!-- Registration Card -->
+        <div id="card-register" class="auth-card hidden">
+            <div class="auth-header">
+                <div class="auth-logo">CREATE ACCOUNT</div>
+                <div class="auth-subtitle">Encrypted institutional setup</div>
+            </div>
+            <div class="form-group">
+                <label>Full Name</label>
+                <input type="text" placeholder="John Doe">
+            </div>
+            <div class="form-group">
+                <label>Email Address</label>
+                <input type="email" placeholder="john@example.com">
+            </div>
+            <div class="form-group">
+                <label>Phone Number</label>
+                <input type="tel" placeholder="+91 98765 43210">
+            </div>
+            <div class="form-group">
+                <label>Set Password</label>
+                <input type="password" placeholder="••••••••">
+            </div>
+            <label class="checkbox-label">
+                <input type="checkbox"> I accept the trading terms & conditions.
+            </label>
+            <button class="auth-btn" id="btn-register-confirm">REGISTER & SEND OTP</button>
+            <div class="auth-links">
+                <span class="auth-link" onclick="showAuthPage('login')">Already have an account? Login</span>
+            </div>
+        </div>
+
+        <!-- OTP Verification Card -->
+        <div id="card-otp" class="auth-card hidden">
+            <div class="auth-header">
+                <div class="auth-logo">VERIFY OTP</div>
+                <div class="auth-subtitle">Code sent to jo****@gmail.com</div>
+            </div>
+            <div class="otp-inputs">
+                <input type="text" class="otp-box" maxlength="1" onkeyup="moveOTP(this, 1)">
+                <input type="text" class="otp-box" maxlength="1" onkeyup="moveOTP(this, 2)">
+                <input type="text" class="otp-box" maxlength="1" onkeyup="moveOTP(this, 3)">
+                <input type="text" class="otp-box" maxlength="1" onkeyup="moveOTP(this, 4)">
+                <input type="text" class="otp-box" maxlength="1" onkeyup="moveOTP(this, 5)">
+                <input type="text" class="otp-box" maxlength="1" onkeyup="moveOTP(this, 6)">
+            </div>
+            <div style="text-align: center; margin-bottom: 24px; font-size: 0.8rem; color: var(--text-dim);">
+                Resend OTP in <span id="otp-timer" style="color: var(--primary)">01:59</span>
+            </div>
+            <button class="auth-btn" onclick="validateOTP()">VALIDATE & CONTINUE</button>
+        </div>
+
+        <!-- Forgot Password Card -->
+        <div id="card-forgot" class="auth-card hidden">
+            <div class="auth-header">
+                <div class="auth-logo">RESET PASSWORD</div>
+                <div class="auth-subtitle">Institutional security recovery</div>
+            </div>
+            <div class="form-group">
+                <label>Registered Email</label>
+                <input type="email" id="forgot-email" placeholder="manager@vault.com">
+            </div>
+            <button class="auth-btn" onclick="handleForgotPassword()">SEND RECOVERY LINK</button>
+            <div class="auth-links">
+                <span class="auth-link" onclick="showAuthPage('login')">Return to Login</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- --- APP DASHBOARD --- -->
+    <div id="app-layer" class="dashboard-wrapper hidden">
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar-v2">
+            <div class="sidebar-top">
+                <div class="brand-v2">
+                    <div class="logo-orb"></div>
+                    <span class="logo-text">Intraday AI</span>
+                </div>
+            </div>
+
+            <nav class="command-group vertical">
+                <button id="main-start" class="ctrl-btn start-v2">
+                    <span class="ctrl-icon">▶</span>
+                    <span>START SYSTEM</span>
+                </button>
+                <button id="main-emergency" class="ctrl-btn emergency-v2">
+                    <span class="ctrl-icon">🛑</span>
+                    <span>EMERGENCY STOP</span>
+                </button>
+                <button id="main-squareoff" class="ctrl-btn warning-v2">
+                    <span class="ctrl-icon">⚡</span>
+                    <span>SQUARE OFF ALL</span>
+                </button>
+            </nav>
+
+            <div class="nav-group">
+                <button class="nav-btn active" onclick="showTab(this, 'dashboard')">📊 Main Dashboard</button>
+                <button class="nav-btn" onclick="showTab(this, 'agent-intelligence')">🧠 Agent Intelligence</button>
+                <button class="nav-btn" onclick="showTab(this, 'performance')">📈 Deep Analytics</button>
+                <button class="nav-btn" onclick="showTab(this, 'strategy')">🧩 Strategy Editor</button>
+                <button class="nav-btn" onclick="showTab(this, 'admin')">🛡️ Admin Console</button>
+                <button class="nav-btn" id="nav-btn-profile" onclick="showTab(this, 'profile')">👤 User Profile</button>
+                <button class="nav-btn" onclick="showTab(this, 'settings')">⚙️ Global Settings</button>
+            </div>
+
+            <div style="padding: 20px; border-top: 1px solid var(--border); margin-top: auto;">
+                <button class="nav-btn logout-v2" onclick="logout()" 
+                    style="width: 100%; border-top: 1px solid var(--border); padding-top: 12px; color: var(--danger); justify-content: center;">
+                    🔐 Secure Logout
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN AREA -->
+        <main class="main-content-v2">
+            <!-- SYSTEM HEALTH NOTICE (SUBTLE) -->
+            <div id="system-health-notice" class="hidden"
+                style="background: rgba(255, 100, 0, 0.05); border-bottom: 1px solid rgba(255, 100, 0, 0.1); padding: 10px 24px; font-size: 0.75rem; color: var(--warning); display: flex; align-items: center; justify-content: center; gap: 10px; z-index: 100;">
+                <span>⚠️ Some intelligence agents are temporarily paused due to API limits. Core system operations
+                    remain unaffected.</span>
+            </div>
+
+            <div id="tab-dashboard" class="content-view">
+                <!-- TOP BAR -->
+                <header class="Inst-top-bar">
+                    <div class="left-section">
+                        <div class="tab-list-inst">
+                            <button class="market-tab active" data-market="NIFTY">NIFTY</button>
+                            <button class="market-tab" data-market="BANKNIFTY">BANKNIFTY</button>
+                            <button class="market-tab" data-market="SENSEX">SENSEX</button>
+                            <button class="market-tab" data-market="COMMODITY">COMMODITY</button>
+                        </div>
+                        <!-- UNIVERSAL SEARCH BAR -->
+                        <div class="universal-search-wrapper">
+                            <div class="search-input-group">
+                                <span class="search-icon">🔍</span>
+                                <input type="text" id="symbol-search-input"
+                                    placeholder="Search Symbol (e.g. RELIANCE)..." autocomplete="off">
+                                <div id="search-loading-spinner" class="spinner-tiny hidden"></div>
+                            </div>
+                            <div id="search-results-dropdown" class="search-results-dropdown hidden">
+                                <!-- Results will be injected here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="capital-controls">
+                        <div class="cap-group">
+                            <label>TOTAL CAPITAL</label>
+                            <select id="select-total-cap" onchange="updateCapitalSettings()">
+                                <option value="50000">₹50,000</option>
+                                <option value="100000" selected>₹1,00,000</option>
+                                <option value="500000">₹5,00,000</option>
+                                <option value="custom">CUSTOM</option>
+                            </select>
+                        </div>
+                        <div class="cap-group">
+                            <label>DEPLOY LIMIT (USED)</label>
+                            <input type="number" id="input-used-cap-limit" placeholder="₹ Unlimited"
+                                onchange="updateCapitalSettings()" oninput="updateCapitalSettings()">
+                        </div>
+                    </div>
+
+                    <div class="top-metrics">
+                        <div class="metric-item">
+                            <span class="label">BIAS</span>
+                            <span class="val success-text" id="mkt-bias">BULLISH</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">SESSION P&L</span>
+                            <span class="val success-text" id="sys-pnl-summary">₹0.00</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">POINTS</span>
+                            <span class="val" id="sys-points-summary">0.0 pts</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="label">EXPOSURE</span>
+                            <span class="val" id="sys-exposure-summary">₹0</span>
+                        </div>
+                        <div class="metric-item" style="border-left: 1px solid var(--border); padding-left: 24px;">
+                            <span class="label">EXECUTION MODE</span>
+                            <select id="header-execution-mode-select" class="val accent-text" 
+                                style="background: transparent; border: none; font-size: 1.1rem; font-weight: 800; cursor: pointer; color: inherit; padding: 0; outline: none; appearance: none; -webkit-appearance: none;"
+                                onchange="handleHeaderModeChange()">
+                                <option value="MOCK" style="background: #0a0a0a; color: var(--accent);">MOCK</option>
+                                <option value="SIMULATION" style="background: #0a0a0a; color: var(--warning);">SIMULATION</option>
+                                <option value="PAPER" style="background: #0a0a0a; color: var(--warning);">PAPER</option>
+                                <option value="REAL" style="background: #0a0a0a; color: var(--danger);">REAL</option>
+                            </select>
+                            <span style="font-size: 0.6rem; margin-left: -4px; opacity: 0.6;">▼</span>
+                        </div>
+                        <div class="metric-item" id="header-data-container"
+                            style="border-left: 1px solid var(--border); padding-left: 24px;">
+                            <span class="label">MARKET DATA</span>
+                            <span class="val warning-text" id="header-data-status">LOCAL FEED</span>
+                        </div>
+                        <div class="metric-item" style="border-left: 1px solid var(--border); padding-left: 24px;">
+                            <span class="label">ALGO ENGINE</span>
+                            <span class="val danger-text" id="header-algo-status">OFFLINE</span>
+                        </div>
+                        <div id="dynamic-price-container" style="display: flex; gap: 24px; align-items: center;">
+                            <div class="metric-item price-box"
+                                style="border-left: 1px solid var(--border); padding-left: 24px;">
+                                <span class="label" id="mkt-symbol-label">NIFTY</span>
+                                <span class="val huge" id="mkt-ltp">0.00</span>
+                                <span class="change success-text" id="mkt-chg">+0.00%</span>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                <!-- KPIs Moved up slightly or kept here -->
+
+                <!-- PRIMARY CARDS (KPIs) -->
+                <section class="kpi-grid">
+                    <div class="inst-card">
+                        <div class="card-label">DAILY PROFIT</div>
+                        <div class="card-val success-text" id="hud-profit">₹0.00</div>
+                        <div class="card-sub">Goal: 25%</div>
+                    </div>
+                    <div class="inst-card">
+                        <div class="card-label">DAILY DRAWDOWN</div>
+                        <div class="card-val" id="hud-drawdown">₹0.00</div>
+                        <div class="card-sub danger-text">Limit: ₹1k</div>
+                    </div>
+                    <div class="inst-card">
+                        <div class="card-label">CAPITAL EXPOSURE</div>
+                        <div class="card-val" id="hud-used-cap">₹0</div>
+                        <div class="card-sub">Available: ₹1.0L</div>
+                    </div>
+                    <div class="inst-card">
+                        <div class="card-label">RISK UTILIZATION</div>
+                        <div class="card-val" id="hud-risk-meter">0%</div>
+                        <div class="card-sub">Healthy</div>
+                    </div>
+                </section>
+
+                <!-- MAIN 3-COLUMN GRID (COMPLETELY OPTIMIZED) -->
+                <section class="main-grid-3">
+
+                    <!-- COL 1: SIGNAL INTELLIGENCE -->
+                    <div class="grid-col">
+                        <div class="section-header">
+                            <h3>SIGNAL INTELLIGENCE</h3>
+                            <span class="status-dot waiting"></span>
+                        </div>
+                        <div id="signal-intelligence" class="pattern-list-clean">
+                            <div class="intelligence-card">
+                                <div class="intel-row">
+                                    <span class="label">CURRENT TREND</span>
+                                    <span id="intel-trend" class="val neutral">SCANNING...</span>
+                                </div>
+                                <div class="intel-row">
+                                    <span class="label">ACTIVE PATTERN</span>
+                                    <span id="intel-pattern" class="val">NONE</span>
+                                </div>
+                                <div class="intel-row">
+                                    <span class="label">CONFIDENCE</span>
+                                    <span id="intel-confidence" class="val">0%</span>
+                                </div>
+                                <div class="intel-desc" id="intel-reason">
+                                    Awaiting market structure break confirmation...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- COL 2: QUICK EXECUTION (NEW) -->
+                    <div class="grid-col">
+                        <div class="section-header">
+                            <h3>QUICK EXECUTION</h3>
+                            <div style="display: flex; gap: 8px;">
+                                <span class="badge accent">MANUAL MODE</span>
+                                <span class="badge" id="quick-algo-status"
+                                    style="background: rgba(255, 255, 255, 0.05); color: var(--text-dim);">ALGO:
+                                    OFFLINE</span>
+                            </div>
+                        </div>
+                        <div class="order-panel-clean">
+                            <div class="order-row">
+                                <div class="order-field">
+                                    <label>ORDER TYPE</label>
+                                    <select id="manual-order-type" class="logic-input small">
+                                        <option value="MARKET">MARKET</option>
+                                        <option value="LIMIT">LIMIT</option>
+                                    </select>
+                                </div>
+                                <div class="order-field">
+                                    <label>QUANTITY</label>
+                                    <input type="number" id="manual-order-qty" value="50" step="50" min="1">
+                                </div>
+                            </div>
+                            <div class="order-row" id="limit-price-row" style="display: none; margin-top: 12px;">
+                                <div class="order-field" style="width: 100%;">
+                                    <label>LIMIT PRICE</label>
+                                    <input type="number" id="manual-order-price" placeholder="0.00" step="0.05">
+                                </div>
+                            </div>
+                            <div class="trade-actions-grid">
+                                <button class="trade-btn buy" onclick="executeManualTrade('BUY')">
+                                    <span class="btn-label">BUY / LONG</span>
+                                    <span class="btn-sub" id="buy-ltp-sub">LTP: 0.00</span>
+                                </button>
+                                <button class="trade-btn sell" onclick="executeManualTrade('SELL')">
+                                    <span class="btn-label">SELL / SHORT</span>
+                                    <span class="btn-sub" id="sell-ltp-sub">LTP: 0.00</span>
+                                </button>
+                            </div>
+                            <div class="order-status-msg" id="manual-order-status">
+                                System Ready for manual override.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- COL 3: RISK PROTOCOLS -->
+                    <div class="grid-col">
+                        <div class="section-header">
+                            <h3>RISK PROTOCOLS</h3>
+                            <span class="status-dot active"></span>
+                        </div>
+                        <div class="risk-panel-clean">
+                            <div class="risk-row">
+                                <span>Max Trades / Day</span>
+                                <span class="mono" id="rule-max-trades">3</span>
+                            </div>
+                            <div class="risk-row">
+                                <span>Max Loss Limit</span>
+                                <span class="mono danger-text" id="rule-max-loss">1%</span>
+                            </div>
+                            <div class="risk-row">
+                                <span>Risk Per Trade</span>
+                                <span class="mono" id="rule-risk-trade">1%</span>
+                            </div>
+                            <div class="risk-toggle-box">
+                                <label>Auto-Squareoff</label>
+                                <div class="toggle-switch active"></div>
+                            </div>
+                            <button class="inst-btn outlined" onclick="toggleSettingsPanel()">CONFIGURE</button>
+                        </div>
+                    </div>
+
+                </section>
+
+                <!-- AGENT INTELLIGENCE CENTER (MOVED TO DEDICATED TAB) -->
+
+                <!-- POSITIONS TABLE -->
+                <section class="positions-section">
+                    <div class="section-header">
+                        <h3>INSTITUTIONAL POSITIONS</h3>
+                    </div>
+                    <div class="table-container">
+                        <table class="inst-table">
+                            <thead>
+                                <tr>
+                                    <th>INSTRUMENT</th>
+                                    <th>DIRECTION</th>
+                                    <th>SIZE</th>
+                                    <th>PRICE</th>
+                                    <th>P/L (PTS)</th>
+                                    <th>P/L (INR)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="v3-positions-body">
+                                <tr>
+                                    <td colspan="6" class="empty-cell">NO ACTIVE POSITIONS</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- FOOTER LOGS -->
+                <div class="footer-terminal" id="v3-terminal">
+                    <!-- Logs -->
+                </div>
+            </div>
+
+            <!-- VIEW: AGENT INTELLIGENCE CENTER -->
+            <div id="tab-agent-intelligence" class="content-view hidden">
+                <header class="Inst-top-bar" style="border-bottom: 1px solid var(--border); padding: 24px;">
+                    <h2 style="margin: 0; font-weight: 800; letter-spacing: -1px; font-size: 1.8rem;">
+                        AGENT <span style="font-weight: 300; opacity: 0.5;">INTELLIGENCE CENTER</span>
+                    </h2>
+                    <div class="badge success">LIVE MULTI-AGENT SWARM</div>
+                </header>
+
+                <div style="flex: 1; overflow-y: auto; padding-bottom: 40px;">
+                    <!-- AGENT STATUS STRIP (MOVED FROM DASHBOARD) -->
+                    <section class="agent-status-strip" style="margin: 20px;">
+                        <div class="status-pill active">
+                            <div class="status-indicator"></div>
+                            MARKET CONTEXT: ACTIVE
+                        </div>
+                        <div class="status-pill active">
+                            <div class="status-indicator"></div>
+                            STRUCTURE BREAK: MONITORING
+                        </div>
+                        <div class="status-pill idle">
+                            <div class="status-indicator"></div>
+                            VALIDATION ENGINE: IDLE
+                        </div>
+                        <div class="status-pill active">
+                            <div class="status-indicator"></div>
+                            RISK PROTOCOLS: SECURE
+                        </div>
+                        <div class="status-pill blocked">
+                            <div class="status-indicator"></div>
+                            EXECUTION: MOCK MODE
+                        </div>
+                        <div id="commodity-status-pill" class="status-pill hidden">
+                            <div class="status-indicator"></div>
+                            <span id="commodity-status-text">COMMODITY: IDLE</span>
+                        </div>
+                    </section>
+
+                    <div class="intelligence-row">
+                        <!-- AGENT ENGINE STATUS -->
+                        <div class="grid-col">
+                            <div class="section-header">
+                                <h3>AGENT ENGINE</h3>
+                                <span class="status-dot active"></span>
+                            </div>
+                            <div id="agents-v2-container" class="agent-list-clean" style="max-height: 250px;">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+
+                        <!-- CHATGPT GUIDANCE ADVISOR -->
+                        <div class="guidance-section" style="padding: 0;">
+                            <div class="guidance-bubble" onclick="requestAiAdvice()"
+                                style="cursor: pointer; width: 100%; border-radius: 12px; height: 100%; display: flex; align-items: center; padding: 20px; background: rgba(0, 243, 255, 0.05); border: 1px solid var(--border);">
+                                <div class="ai-avatar" style="font-size: 2rem; margin-right: 15px;">🤖</div>
+                                <div class="ai-content">
+                                    <label
+                                        style="font-size: 0.7rem; color: var(--primary); font-weight: 800; letter-spacing: 1px;">AI
+                                        STRATEGIC ADVISOR</label>
+                                    <div id="ai-guidance-text"
+                                        style="font-size: 0.95rem; line-height: 1.5; color: var(--text-main); margin-top: 4px;">
+                                        Scanning market structural integrity... Ready to assist.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AGENT INTELLIGENCE & EXPLAINABILITY CENTER -->
+                    <section class="explain-section" style="padding: 0 20px 24px 20px;">
+                        <div class="section-header" style="margin-bottom: 16px;">
+                            <h3>AGENT NETWORK EXPLAINABILITY</h3>
+                            <span class="badge">DEEP REASONING TRAIL</span>
+                        </div>
+                        <div id="agent-explain-grid" class="agent-grid-explain">
+                            <!-- Populated by JS -->
+                        </div>
+                    </section>
+
+                    <!-- DECISION AUDIT TRAIL -->
+                    <section class="audit-section" style="padding: 0 20px;">
+                        <div class="section-header" style="margin-bottom: 16px;">
+                            <h3>DECISION AUDIT TRAIL</h3>
+                            <span class="badge">SECURE LOG</span>
+                        </div>
+                        <div class="audit-container"
+                            style="max-height: 400px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);">
+                            <div id="v2-audit-trail" class="audit-list">
+                                <!-- Populated by JS -->
+                                <div class="audit-row empty">Initializing audit synchronization...</div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- VIEW: PERFORMANCE ANALYTICS -->
+            <div id="tab-performance" class="content-view hidden">
+                <div class="intelligence-row">
+                    <div class="glass-v2">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3>EQUITY CURVE (PnL)</h3>
+                            <div class="chart-controls">
+                                <button class="time-range-btn active" data-range="1D"
+                                    onclick="setChartTimeRange('1D')">1D</button>
+                                <button class="time-range-btn" data-range="5D"
+                                    onclick="setChartTimeRange('5D')">5D</button>
+                                <button class="time-range-btn" data-range="1M"
+                                    onclick="setChartTimeRange('1M')">1M</button>
+                                <button class="time-range-btn" data-range="3M"
+                                    onclick="setChartTimeRange('3M')">3M</button>
+                                <button class="time-range-btn" data-range="6M"
+                                    onclick="setChartTimeRange('6M')">6M</button>
+                                <button class="time-range-btn" data-range="1Y"
+                                    onclick="setChartTimeRange('1Y')">1Y</button>
+                                <button class="chart-refresh-btn" onclick="refreshChart()"
+                                    title="Refresh Chart">↻</button>
+                            </div>
+                        </div>
+                        <div class="chart-scroll-wrapper">
+                            <div class="chart-canvas-container">
+                                <canvas id="pnlChart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass-v2">
+                        <h3>WIN/LOSS DISTRIBUTION</h3>
+                        <div style="display: flex; justify-content: space-around; align-items: center; height: 200px;">
+                            <div class="analytics-stat">
+                                <span class="hud-label">WIN RATE</span>
+                                <div class="hud-value success-text">68%</div>
+                            </div>
+                            <div class="analytics-stat">
+                                <span class="hud-label">PROFIT FACTOR</span>
+                                <div class="hud-value accent-text">1.84</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <section class="positions-glass">
+                    <h3>TRADE RECONCILIATION LOG</h3>
+                    <table class="pos-table-v3">
+                        <thead>
+                            <tr>
+                                <th>TIME</th>
+                                <th>INSTRUMENT</th>
+                                <th>TYPE</th>
+                                <th>ENTRY</th>
+                                <th>EXIT</th>
+                                <th>POINTS</th>
+                                <th style="text-align: right;">NET P/L</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recon-body">
+                            <tr>
+                                <td colspan="7" class="empty-msg">No closed sessions for today</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+
+            <!-- VIEW: RISK SETTINGS -->
+            <!-- VIEW: RISK SETTINGS & GLOBAL CONFIG -->
+            <div id="tab-settings" class="content-view hidden">
+                <div class="settings-grid">
+                    <!-- Column 1: Risk Parameters -->
+                    <div class="glass-v2">
+                        <h3>INSTITUTIONAL RISK LIMITS</h3>
+                        <div class="form-group">
+                            <label>TOTAL TRADING CAPITAL (₹)</label>
+                            <input type="number" id="set-total-capital" value="100000">
+                        </div>
+                        <div class="form-group">
+                            <label>MAX DAILY LOSS (%)</label>
+                            <input type="number" id="set-max-loss" value="1.0" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label>RISK PER TRADE (%)</label>
+                            <input type="number" id="set-risk-trade" value="1.0" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label>MAX TRADES PER DAY</label>
+                            <input type="number" id="set-max-trades" value="3">
+                        </div>
+                        <button class="auth-btn" id="v3-btn-save-settings">UPDATE RISK PROTOCOLS</button>
+                    </div>
+
+                    <!-- Column 2: User Preferences & Modes -->
+                    <div class="glass-v2">
+                        <h3>EXECUTION PREFERENCES</h3>
+                        <div class="form-group">
+                            <label>TRADING MODE</label>
+                            <div class="mode-toggles" style="display: flex; gap: 12px; margin-top: 10px;">
+                                <div class="mode-option selected" id="mode-auto" onclick="setExecutionMode('AUTO')">
+                                    <span class="icon">🤖</span> AUTO
+                                </div>
+                                <div class="mode-option" id="mode-manual" onclick="setExecutionMode('MANUAL')">
+                                    <span class="icon">🖐️</span> MANUAL
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 24px;">
+                            <label>DEFAULT MARKET</label>
+                            <select id="default-market-select" class="logic-input" style="width: 100%;"
+                                onchange="updateDefaultMarket()">
+                                <option value="NIFTY">NIFTY</option>
+                                <option value="BANKNIFTY">BANKNIFTY</option>
+                                <option value="SENSEX">SENSEX</option>
+                                <option value="COMMODITY">COMMODITY</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Column 3: System Controls -->
+                    <div class="glass-v2">
+                        <h3>SYSTEM CONTROLS</h3>
+                        <div class="broker-status-card">
+                            <div id="broker-mode-label" class="badge warning">MOCK EXECUTION</div>
+                            <div style="margin-top: 15px; font-size: 0.8rem; color: var(--text-dim);">
+                                <p>Status: <span id="broker-status-text" class="success-text">CONNECTED</span></p>
+                                <p style="margin-top: 5px;">Latency: <span class="accent-text">42ms</span></p>
+                            </div>
+
+                            <hr style="border: none; border-top: 1px solid var(--border); margin: 20px 0;">
+
+                            <div style="display: grid; gap: 12px;">
+                                <button class="ctrl-btn"
+                                    style="justify-content: center; border-color: var(--warning); color: var(--warning);"
+                                    onclick="controlSystem('reset')">
+                                    ⚠️ RESET SESSION
+                                </button>
+                                <button class="ctrl-btn"
+                                    style="justify-content: center; border-color: var(--danger); color: var(--danger);"
+                                    onclick="logout()">
+                                    ⛓️ DISCONNECT BROKER
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: STRATEGY EDITOR -->
+            <div id="tab-strategy" class="content-view hidden">
+                <div class="intelligence-row">
+                    <div class="agent-col" style="max-height: 80vh; overflow-y: auto;">
+                        <h3 class="section-title">REPOSITORY</h3>
+                        <div class="glass-v2 strategy-item active">
+                            <div class="strat-header">
+                                <b>EMA 20/50 + VWAP</b>
+                                <span class="badge success">LIVE</span>
+                            </div>
+                            <p style="font-size: 0.65rem; color: var(--text-dim);">Trend following with volume
+                                confirmation.</p>
+                        </div>
+                        <div class="glass-v2 strategy-item">
+                            <div class="strat-header">
+                                <b>VWAP Pullback</b>
+                                <span class="badge warning">DRAFT</span>
+                            </div>
+                            <p style="font-size: 0.65rem; color: var(--text-dim);">Mean reversion setup on volume
+                                spikes.</p>
+                        </div>
+                    </div>
+
+                    <div class="glass-v2" style="flex: 1;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3>LOGIC BUILDER</h3>
+                            <button class="badge success" style="border: none; cursor: pointer;">VALIDATE &
+                                SAVE</button>
+                        </div>
+
+                        <div class="logic-flow">
+                            <div class="logic-block">
+                                <span class="logic-op">IF</span>
+                                <div class="logic-content">
+                                    Price <span class="accent-text">></span> EMA ( <input type="number" value="20"
+                                        class="logic-input"> )
+                                </div>
+                            </div>
+                            <div class="logic-block">
+                                <span class="logic-op">AND</span>
+                                <div class="logic-content">
+                                    VWAP <span class="accent-text">Crosses Over</span> Price
+                                </div>
+                            </div>
+                            <div class="logic-block">
+                                <span class="logic-op">THEN</span>
+                                <div class="logic-content success-text">
+                                    Execute <span class="bold">BUY</span> (MIS)
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 32px;">
+                            <h4 style="font-size: 0.7rem; color: var(--text-dim); margin-bottom: 12px;">RISK PARAMETERS
+                            </h4>
+                            <div class="form-group-grid"
+                                style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                <div class="form-group">
+                                    <label>STOP LOSS (PTS)</label>
+                                    <input type="number" value="10">
+                                </div>
+                                <div class="form-group">
+                                    <label>TARGET (PTS)</label>
+                                    <input type="number" value="20">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: ADMIN CONSOLE -->
+            <div id="tab-admin" class="content-view hidden">
+
+                <!-- KPI Row -->
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:24px 24px 0;">
+                    <div class="glass-v2" style="padding:20px;text-align:center;">
+                        <div style="font-size:.65rem;color:var(--text-dim);letter-spacing:2px;margin-bottom:8px;">ACTIVE
+                            CLIENTS</div>
+                        <div id="admin-kpi-clients" style="font-size:2rem;font-weight:800;color:var(--accent);">—</div>
+                    </div>
+                    <div class="glass-v2" style="padding:20px;text-align:center;">
+                        <div style="font-size:.65rem;color:var(--text-dim);letter-spacing:2px;margin-bottom:8px;">TOTAL
+                            AUM</div>
+                        <div id="admin-kpi-aum" style="font-size:2rem;font-weight:800;color:var(--primary);">—</div>
+                    </div>
+                    <div class="glass-v2" style="padding:20px;text-align:center;">
+                        <div style="font-size:.65rem;color:var(--text-dim);letter-spacing:2px;margin-bottom:8px;">
+                            PORTFOLIO P&amp;L TODAY</div>
+                        <div id="admin-kpi-pnl" style="font-size:2rem;font-weight:800;">—</div>
+                    </div>
+                    <div class="glass-v2" style="padding:20px;text-align:center;">
+                        <div style="font-size:.65rem;color:var(--text-dim);letter-spacing:2px;margin-bottom:8px;">RISK
+                            ALERTS</div>
+                        <div id="admin-kpi-alerts" style="font-size:2rem;font-weight:800;color:var(--danger);">—</div>
+                    </div>
+                </div>
+
+                <div class="intelligence-row"
+                    style="padding:16px 24px 24px;grid-template-columns:3fr 1.2fr;gap:16px;align-items:start;">
+
+                    <!-- Client Table -->
+                    <div class="glass-v2">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                            <div>
+                                <h3 style="margin:0;">CLIENT OVERSIGHT</h3>
+                                <div style="font-size:.65rem;color:var(--text-dim);margin-top:4px;letter-spacing:1px;">
+                                    LIVE · AUTO-REFRESH 5s · <span id="admin-last-refresh"
+                                        style="color:var(--accent);">—</span>
+                                </div>
+                            </div>
+                            <button class="badge"
+                                style="background:var(--primary);color:#000;border:none;cursor:pointer;"
+                                onclick="openAddUserModal()">+ ADD CLIENT</button>
+                        </div>
+                        <div style="overflow-x:auto;">
+                            <table class="pos-table-v3" style="width:100%;">
+                                <thead>
+                                    <tr>
+                                        <th>CLIENT ID</th>
+                                        <th>CAPITAL</th>
+                                        <th>POSITIONS</th>
+                                        <th>DAILY P&amp;L</th>
+                                        <th>P&amp;L %</th>
+                                        <th>RISK</th>
+                                        <th>MODE</th>
+                                        <th style="text-align:right;">ACTION</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-client-table">
+                                    <tr>
+                                        <td colspan="8" style="text-align:center;color:var(--text-dim);padding:30px;">
+                                            Loading…</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Right Column -->
+                    <div style="display:grid;gap:16px;">
+
+                        <!-- P&L Bar Chart -->
+                        <div class="glass-v2">
+                            <h3 style="margin:0 0 14px;">P&amp;L DISTRIBUTION</h3>
+                            <div style="position:relative;height:180px;">
+                                <canvas id="admin-pnl-chart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- System Health -->
+                        <div class="glass-v2">
+                            <h3 style="margin:0 0 14px;">SYSTEM HEALTH</h3>
+                            <div style="display:grid;gap:10px;">
+                                <div class="hud-sub"><span>ACTIVE SESSIONS</span><span id="admin-sys-sessions"
+                                        class="accent-text">—</span></div>
+                                <div class="hud-sub"><span>RISK BLOCKS</span><span id="admin-sys-blocks"
+                                        style="color:var(--danger);">0</span></div>
+                                <div class="hud-sub"><span>TOTAL TRADES TODAY</span><span id="admin-sys-trades"
+                                        class="accent-text">—</span></div>
+                            </div>
+                            <button class="ctrl-btn emergency-v2"
+                                style="width:100%;margin-top:20px;justify-content:center;"
+                                onclick="adminForceStopAll()">🛑 FORCE STOP ALL</button>
+                        </div>
+
+                        <!-- Quick Onboard -->
+                        <div class="glass-v2">
+                            <h3 style="margin:0 0 14px;">QUICK ONBOARD</h3>
+                            <input id="new-client-id" type="text" placeholder="client@email.com"
+                                style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px;margin-bottom:10px;font-size:.8rem;">
+                            <input id="new-client-capital" type="number" placeholder="Starting Capital (₹)"
+                                style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px;margin-bottom:14px;font-size:.8rem;">
+                            <button class="ctrl-btn start-v2" style="width:100%;justify-content:center;"
+                                onclick="adminOnboardClient()">➕ ADD &amp; PROVISION</button>
+                            <div id="onboard-status"
+                                style="font-size:.75rem;margin-top:8px;text-align:center;color:var(--accent);min-height:18px;">
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: MARKET DETAIL (DEEP DIVE) -->
+            <div id="tab-market-detail" class="content-view hidden">
+                <header class="panel-header"
+                    style="padding: 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 20px;">
+                        <button class="nav-btn" style="border: 1px solid var(--border); padding: 5px 15px;"
+                            onclick="showTab(null, 'dashboard')">← BACK</button>
+                        <h2 id="detail-market-title"
+                            style="margin: 0; font-weight: 800; letter-spacing: -1px; font-size: 2rem;">NIFTY <span
+                                style="font-weight: 300; opacity: 0.5;">FUTURES</span></h2>
+                    </div>
+                    <div class="badge success">STRATEGY OPTIMIZED</div>
+                </header>
+                <div class="intelligence-row" style="padding: 24px; gap: 24px;">
+                    <div class="glass-v2"
+                        style="flex: 2; height: 500px; display: flex; flex-direction: column; overflow: hidden;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <div class="chart-controls">
+                                <button class="time-range-btn active" data-tf="1m"
+                                    onclick="updateDeepTimeframe('1m')">1M</button>
+                                <button class="time-range-btn" data-tf="5m"
+                                    onclick="updateDeepTimeframe('5m')">5M</button>
+                                <button class="time-range-btn" data-tf="15m"
+                                    onclick="updateDeepTimeframe('15m')">15M</button>
+                                <button class="time-range-btn" data-tf="1h"
+                                    onclick="updateDeepTimeframe('1h')">1H</button>
+                                <button class="time-range-btn" data-tf="1d"
+                                    onclick="updateDeepTimeframe('1d')">1D</button>
+                            </div>
+                            <div id="pattern-stat-label" style="font-size: 0.7rem; color: var(--accent);">Pattern
+                                Detection: ACTIVE</div>
+                        </div>
+                        <div style="flex: 1; position: relative;">
+                            <canvas id="ohlcChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="glass-v2" style="flex: 1;">
+                        <h3 class="section-title">SPECIFICATIONS</h3>
+                        <div style="display: grid; gap: 12px; margin-top: 20px;">
+                            <div class="hud-sub"><span>Lot Size</span> <span class="accent-text" id="detail-lot-size">50
+                                    units (1x)</span></div>
+                            <div class="hud-sub"><span>Margin/Lot</span> <span class="accent-text">₹1.25L</span></div>
+                            <div class="hud-sub"><span>ATR (14)</span> <span class="accent-text">145.2 pts</span></div>
+                            <div class="hud-sub"><span>Vwap Bias</span> <span class="success-text">ABOVE</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: AGENT DETAIL -->
+            <div id="tab-agent-detail" class="content-view hidden">
+                <header class="panel-header"
+                    style="padding: 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center;">
+                    <button class="nav-btn"
+                        style="border: 1px solid var(--border); padding: 5px 15px; margin-right: 20px;"
+                        onclick="showTab(null, 'dashboard')">← BACK</button>
+                    <h2 id="detail-agent-title"
+                        style="margin: 0; font-weight: 800; letter-spacing: -1px; font-size: 2rem;">AGENT CORE <span
+                            style="font-weight: 300; opacity: 0.5;">LOGIC</span></h2>
+                </header>
+                <div class="intelligence-row" style="padding: 24px;">
+                    <div class="glass-v2" style="flex: 1;">
+                        <h3>NEURAL FRAMEWORK</h3>
+                        <p style="font-size: 0.8rem; color: var(--text-dim); line-height: 1.6; margin-top: 15px;">
+                            This agent utilizes a proprietary decision-matrix to evaluate market structure breaks
+                            and volume distribution. It operates with a sub-10ms latency loop to ensure
+                            order execution follows institutional footprints.
+                        </p>
+                    </div>
+                    <div class="glass-v2" style="flex: 1;">
+                        <h3>EXECUTION TELEMETRY</h3>
+                        <div class="terminal-v3" style="margin-top: 15px; height: 150px;">
+                            <div class="t-row"><span class="t-msg">HEARTBEAT_ACK: OK</span></div>
+                            <div class="t-row"><span class="t-msg">SCAN_LOOP: 4ms Overhead</span></div>
+                            <div class="t-row"><span class="t-msg">LOGIC_GATE: Passing Rules [4/4]</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- USER PROFILE SECTION -->
+            <div id="tab-profile" class="content-view hidden">
+                <header class="Inst-top-bar" style="margin-bottom: 32px; padding: 20px; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid var(--border);">
+                    <div class="left-section">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div style="width: 48px; height: 48px; background: var(--accent-gradient); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; filter: drop-shadow(0 0 10px rgba(0,243,255,0.2));">👤</div>
+                            <div>
+                                <h1 style="color: var(--text); font-size: 1.6rem; font-weight: 800; letter-spacing: -1px; margin: 0;">Institutional Account Hub</h1>
+                                <p style="font-size: 0.75rem; color: var(--text-dim); margin: 0; opacity: 0.7;">Secure Identity & System Telemetry</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="top-metrics" style="background: rgba(0,0,0,0.2); border-radius: 8px; padding: 10px 20px;">
+                        <div class="metric-item">
+                            <span class="label">PLATFORM ID</span>
+                            <span class="val accent-text" id="profile-id-metric" style="font-family: 'JetBrains Mono', monospace;">---</span>
+                        </div>
+                        <div class="metric-item" style="border-left: 1px solid var(--border); padding-left: 24px;">
+                            <span class="label">LIFETIME P&L</span>
+                            <span class="val success-text" id="profile-total-profits" style="font-weight: 800;">₹0.00</span>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="profile-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px;">
+                    <!-- LEFT COLUMN: IDENTITY -->
+                    <div class="glass-v2" style="padding: 24px; display: flex; flex-direction: column; gap: 24px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="margin: 0; font-weight: 800; letter-spacing: -0.5px; color: var(--accent);">IDENTITY PROTOCOLS</h3>
+                            <button class="nav-btn" onclick="toggleTheme()" style="padding: 6px 14px; font-size: 0.7rem; border-radius: 20px; border: 1px solid var(--border); background: rgba(255,255,255,0.03);">
+                                🌓 SWITCH THEME
+                            </button>
+                        </div>
+
+                        <div style="display: flex; flex-direction: column; gap: 20px;">
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.65rem; letter-spacing: 1px; color: var(--text-dim);">REGISTERED ACCOUNT EMAIL</label>
+                                <div id="profile-email-display" style="margin-top: 8px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 6px; border: 1px solid var(--border); font-size: 0.9rem; font-weight: 700; color: var(--text);">loading...</div>
+                            </div>
+
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.65rem; letter-spacing: 1px; color: var(--text-dim);">DISPLAY NAME (PUBLIC)</label>
+                                <div style="display: flex; gap: 10px; margin-top: 8px;">
+                                    <input type="text" id="profile-name-input" class="logic-input" style="flex: 1; height: 40px; background: rgba(0,0,0,0.2);" placeholder="Set display name">
+                                    <button class="auth-btn" style="width: auto; height: 40px; padding: 0 20px; font-size: 0.7rem; margin: 0; border-radius: 6px;" onclick="updateProfileName()">SAVE</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN: SECURITY -->
+                    <div class="glass-v2" style="padding: 24px; display: flex; flex-direction: column; gap: 24px;">
+                        <h3 style="margin: 0; font-weight: 800; letter-spacing: -0.5px; color: var(--warning);">SECURITY GATEWAY</h3>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div class="glass-v2" style="padding: 15px; background: rgba(0,0,0,0.1); border: 1px solid var(--border);">
+                                <label style="font-size: 0.6rem; color: var(--text-dim);">CLOUD STATUS</label>
+                                <div id="profile-verification-badge" style="margin-top: 5px; font-size: 0.8rem; font-weight: 800; color: var(--accent);">VERIFYING...</div>
+                            </div>
+                            <div class="glass-v2" style="padding: 15px; background: rgba(0,0,0,0.1); border: 1px solid var(--border);">
+                                <label style="font-size: 0.6rem; color: var(--text-dim);">ACTIVE BROKER</label>
+                                <div id="profile-broker-badge" style="margin-top: 5px; font-size: 0.8rem; font-weight: 800; color: var(--warning);">ALICE BLUE</div>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin: 0; border-top: 1px solid var(--border); padding-top: 20px;">
+                            <label style="font-size: 0.65rem; letter-spacing: 1px; color: var(--text-dim);">PLATFORM MASTER PASSWORD</label>
+                            <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+                                <input type="password" id="profile-new-password" class="logic-input" placeholder="Enter new master password" style="background: rgba(0,0,0,0.2); height: 40px;">
+                                <button class="auth-btn danger" style="width: 100%; height: 40px; font-size: 0.75rem; margin: 0; border-radius: 6px; box-shadow: 0 4px 15px rgba(255,62,62,0.1);" onclick="updateProfilePassword()">UPDATE CREDENTIALS</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BOTTOM ROW: SYSTEM TELEMETRY -->
+                    <div class="glass-v2" style="grid-column: span 2; padding: 24px;">
+                        <h3 style="margin: 0 0 20px 0; font-weight: 800; letter-spacing: -0.5px; opacity: 0.5; font-size: 0.8rem;">SYSTEM TELEMETRY & PERSISTENCE</h3>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
+                            <div class="metric-telemetry">
+                                <label style="display: block; font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase;">Node Provisioned</label>
+                                <span id="profile-created-date" style="font-weight: 700; color: var(--text);">--/--/--</span>
+                            </div>
+                            <div class="metric-telemetry">
+                                <label style="display: block; font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase;">Last Sign-In</label>
+                                <span id="profile-last-login" style="font-weight: 700; color: var(--text);">--:--:--</span>
+                            </div>
+                            <div class="metric-telemetry">
+                                <label style="display: block; font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase;">Engine Mode</label>
+                                <span id="profile-execution-mode" style="font-weight: 700; color: var(--accent);">LOCKED</span>
+                            </div>
+                            <div class="metric-telemetry">
+                                <label style="display: block; font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase;">Connection</label>
+                                <span style="font-weight: 700; color: var(--success);">STABLE_SECURE</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- --- SLIDE-OUT PANEL --- -->
+    <div id="settings-panel" class="side-panel hidden">
+        <div class="panel-header"
+            style="display: flex; justify-content: space-between; align-items: center; padding: 24px; border-bottom: 1px solid var(--border);">
+            <h3>USER PREFERENCES</h3>
+            <button onclick="toggleSettingsPanel()"
+                style="background: none; border: none; color: var(--text-dim); font-size: 1.5rem; cursor: pointer;">×</button>
+        </div>
+        <div class="panel-body" style="padding: 24px;">
+            <div class="form-group">
+                <label>DEFAULT MARKET</label>
+                <select class="logic-input" style="width: 100%;">
+                    <option>NIFTY</option>
+                    <option>BANKNIFTY</option>
+                    <option>SENSEX</option>
+                    <option>COMMODITY</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>EXECUTION MODE</label>
+                <div style="display: flex; gap: 20px; margin-top: 10px;">
+                    <label style="font-size: 0.75rem;"><input type="radio" name="emode" checked> AUTO</label>
+                    <label style="font-size: 0.75rem;"><input type="radio" name="emode"> MANUAL</label>
+                </div>
+            </div>
+            <div class="form-group" style="margin-top: 32px;">
+                <label>NOTIFICATIONS</label>
+                <div style="display: grid; gap: 10px; margin-top: 10px;">
+                    <label style="font-size: 0.7rem;"><input type="checkbox" checked> WhatsApp</label>
+                    <label style="font-size: 0.7rem;"><input type="checkbox" checked> Email</label>
+                </div>
+            </div>
+            <div class="panel-footer" style="margin-top: 40px;">
+                <button class="auth-btn">SAVE CHANGES</button>
+            </div>
+        </div>
+    </div>
+    <!-- SIMULATION MODE BADGE -->
+    <div class="simulation-mode-badge">SIMULATION MODE</div>
+
+    <!-- AGENT DETAIL DRAWER (EXPLAINABILITY) -->
+    <div id="agent-detail-drawer" class="agent-drawer">
+        <button class="close-btn" onclick="toggleAgentDrawer(false)">&times;</button>
+        <h5 id="drawer-agent-category">AGENT CORE</h5>
+        <h2 id="drawer-agent-name">Agent Name</h2>
+        <div id="drawer-agent-status-tag" class="status-pill status-idle">IDLE</div>
+
+        <div class="responsibility-box">
+            <h5>Responsibility</h5>
+            <p id="drawer-responsibility">Detailed description of what this agent does...</p>
+        </div>
+
+        <div class="task-box">
+            <h5>Current Task</h5>
+            <p id="drawer-current-task">Scanning market data for structural breaks...</p>
+        </div>
+
+        <div class="telemetry-box" style="margin-top: 16px;">
+            <h5>Agent Telemetry</h5>
+            <div class="snapshot-row" style="margin-bottom: 8px;">
+                <span class="lbl">Inputs</span>
+                <span class="val" id="drawer-inputs" style="font-size: 0.75rem; color: var(--text-dim);">Scanning
+                    OHLC...</span>
+            </div>
+            <div class="snapshot-row">
+                <span class="lbl">Outputs</span>
+                <span class="val" id="drawer-outputs" style="font-size: 0.75rem; color: var(--text-dim);">Generating
+                    signals...</span>
+            </div>
+        </div>
+
+        <div class="decision-snapshot">
+            <h5>Last Decision</h5>
+            <div class="snapshot-row">
+                <span class="lbl">Signal</span>
+                <span class="val" id="snapshot-signal">HOLD</span>
+            </div>
+            <div class="snapshot-row">
+                <span class="lbl">Reason</span>
+                <span class="val" id="snapshot-reason">Market in range</span>
+            </div>
+            <div class="snapshot-row">
+                <span class="lbl">Timestamp</span>
+                <span class="val" id="snapshot-time">--:--:--</span>
+            </div>
+            <div class="snapshot-row">
+                <span class="lbl">Confidence</span>
+                <span class="val" id="snapshot-conf">0%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADMIN: ADD USER MODAL -->
+    <div id="add-user-modal" class="auth-overlay hidden">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="auth-logo">SECURE ONBOARDING</div>
+                <div class="auth-subtitle">Add managed entity with READ-ONLY scope</div>
+                <button onclick="closeAddUserModal()"
+                    style="position: absolute; top: 20px; right: 20px; background: none; border: none; color: var(--text-dim); font-size: 1.5rem; cursor: pointer;">&times;</button>
+            </div>
+
+            <div class="form-group">
+                <label>USER ID / CLIENT CODE</label>
+                <input type="text" id="add-user-id" placeholder="e.g. AB12345" required>
+            </div>
+
+            <div class="form-group">
+                <label>PASSWORD</label>
+                <input type="password" id="add-user-pass" placeholder="••••••••" required>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div class="form-group">
+                    <label>API KEY</label>
+                    <input type="password" id="add-user-api" placeholder="Masked" required>
+                </div>
+                <div class="form-group">
+                    <label>SECRET KEY</label>
+                    <input type="password" id="add-user-secret" placeholder="Masked" required>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 15px;">
+                <label>BROKER PLATFORM</label>
+                <select id="add-user-broker" class="logic-input" style="width:100%;">
+                    <option value="ALICE_BLUE">Alice Blue</option>
+                    <option value="ZERODHA">Zerodha (Coming Soon)</option>
+                    <option value="UPSTOX">Upstox (Coming Soon)</option>
+                    <option value="GROWW">Groww (Coming Soon)</option>
+                    <option value="FYERS">Fyers (Coming Soon)</option>
+                    <option value="ANGEL">Angel One (Coming Soon)</option>
+                </select>
+            </div>
+
+            <div
+                style="margin: 15px 0; padding: 12px; background: rgba(0,243,255,0.05); border: 1px solid rgba(0,243,255,0.2); border-radius: 8px;">
+                <p style="font-size: 0.7rem; color: var(--primary); margin: 0; line-height: 1.4;">
+                    🛡️ <b>SECURITY NOTICE:</b> Managed users are added with restricted permissions.
+                    Execution rights are disabled by default. Credentials are used for validation and discarded.
+                </p>
+            </div>
+
+            <button class="auth-btn" onclick="submitAddUser()">AUTHENTICATE & ONBOARD</button>
+            <button class="nav-btn" onclick="closeAddUserModal()"
+                style="border: 1px solid var(--border); justify-content: center; margin-top: 10px;">CANCEL</button>
+        </div>
+    </div>
+
+    <!-- MODE SELECTION MODAL -->
+    <div id="mode-layer" class="auth-overlay hidden" style="z-index: 9999;">
+        <div class="auth-card" style="width: 500px; max-width: 90%;">
+            <div class="auth-header">
+                <div class="auth-logo">SYSTEM MODE</div>
+                <div class="auth-subtitle">Select Execution Environment</div>
+            </div>
+
+            <div class="mode-grid" style="display: grid; gap: 12px; margin: 20px 0;">
+                <div class="mode-option" id="mode-sel-mock"
+                    style="padding: 15px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                    <div class="mode-title" style="font-weight: 700; font-size: 0.9rem;">MOCK MODE</div>
+                    <div class="mode-desc" style="font-size: 0.75rem; color: var(--text-dim);">Internal logic loop. No
+                        API calls. Zero risk.</div>
+                </div>
+                <div class="mode-option" id="mode-sel-simulation"
+                    style="padding: 15px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                    <div class="mode-title" style="font-weight: 700; font-size: 0.9rem; color: var(--accent);">
+                        SIMULATION</div>
+                    <div class="mode-desc" style="font-size: 0.75rem; color: var(--text-dim);">Historical data replay
+                        with virtual fills.</div>
+                </div>
+                <div class="mode-option" id="mode-sel-paper"
+                    style="padding: 15px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                    <div class="mode-title" style="font-weight: 700; font-size: 0.9rem; color: var(--warning);">PAPER
+                        TRADING</div>
+                    <div class="mode-desc" style="font-size: 0.75rem; color: var(--text-dim);">Live market data. Virtual
+                        execution. Strategy validation.</div>
+                </div>
+                <div class="mode-option" id="mode-sel-real"
+                    style="padding: 15px; border: 1px solid var(--danger); background: rgba(255, 62, 62, 0.05); border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                    <div class="mode-title" style="font-weight: 700; font-size: 0.9rem; color: var(--danger);">🛑 REAL
+                        TRADING</div>
+                    <div class="mode-desc" style="font-size: 0.75rem; color: var(--text-dim);">Live execution via Broker
+                        API. Real capital at risk.</div>
+                </div>
+            </div>
+
+            <button class="nav-btn"
+                style="width: 100%; justify-content: center; border: 1px solid var(--border);">CANCEL</button>
+        </div>
+    </div>
+
+
+
+    <!-- MANDATORY FINAL FOOTER -->
+    <footer class="mandatory-footer">
+        This platform operates in simulation mode only. Live trading will be enabled later by the project team when
+        compliant.
+    </footer>
+</body>
+
+</html>
+```

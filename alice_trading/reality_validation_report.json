@@ -1,0 +1,170 @@
+{
+    "timestamp": "2026-03-26T15:05:39.395913",
+    "scenarios_evaluated": [
+        "TRENDING_BULL",
+        "TRENDING_BEAR",
+        "CHOPPY_NOISE",
+        "HIGH_VOLATILITY"
+    ],
+    "system_readiness": "REQUIRES_REVIEW",
+    "detailed_metrics": {
+        "TRENDING_BULL": {
+            "total_trades": 3,
+            "win_rate": 100.0,
+            "loss_rate": 0.0,
+            "total_pnl": 45869.41,
+            "max_drawdown": 0.0,
+            "average_rr": 1.98,
+            "final_capital": 545869.41,
+            "trades": [
+                {
+                    "trade_id": "BT_0049",
+                    "symbol": "TRENDING_BULL",
+                    "direction": "LONG",
+                    "entry_time": "2026-02-25 03:13:52",
+                    "entry_price": 21267.94504894065,
+                    "stop_loss": 21161.60532369595,
+                    "target": 21480.624499430058,
+                    "qty": 70,
+                    "reason": "Elite Pattern: BULLISH + BOS + EMA + VWAP confirmed.",
+                    "exit_price": 21480.624499430058,
+                    "pnl": 14887.56,
+                    "result": "WIN",
+                    "exit_time": "2026-02-25 05:28:52"
+                },
+                {
+                    "trade_id": "BT_0059",
+                    "symbol": "TRENDING_BULL",
+                    "direction": "LONG",
+                    "entry_time": "2026-02-25 05:43:52",
+                    "entry_price": 21524.128251174054,
+                    "stop_loss": 21416.507609918182,
+                    "target": 21739.369533685793,
+                    "qty": 71,
+                    "reason": "Elite Pattern: BULLISH + BOS + EMA + VWAP confirmed.",
+                    "exit_price": 21739.369533685793,
+                    "pnl": 15282.13,
+                    "result": "WIN",
+                    "exit_time": "2026-02-25 08:43:52"
+                },
+                {
+                    "trade_id": "BT_0072",
+                    "symbol": "TRENDING_BULL",
+                    "direction": "LONG",
+                    "entry_time": "2026-02-25 08:58:52",
+                    "entry_price": 21805.163127289903,
+                    "stop_loss": 21696.137311653452,
+                    "target": 22023.2147585628,
+                    "qty": 72,
+                    "reason": "Elite Pattern: BULLISH + BOS + EMA + VWAP confirmed.",
+                    "exit_price": 22023.2147585628,
+                    "pnl": 15699.72,
+                    "result": "WIN",
+                    "exit_time": "2026-02-25 11:28:52"
+                }
+            ],
+            "behavior": {
+                "aggression_level": "LOW",
+                "selectivity": "STRICT",
+                "stability": "STABLE"
+            },
+            "consistency": {
+                "consistency_score": 66.84,
+                "variance": 109963.42,
+                "status": "CONDITION_DEPENDENT"
+            }
+        },
+        "TRENDING_BEAR": {
+            "total_trades": 0,
+            "win_rate": 0.0,
+            "loss_rate": 0.0,
+            "total_pnl": 0.0,
+            "max_drawdown": 0.0,
+            "average_rr": 0.0,
+            "final_capital": 500000.0,
+            "trades": [],
+            "behavior": {
+                "aggression_level": "LOW",
+                "selectivity": "LOOSE",
+                "stability": "STABLE"
+            },
+            "consistency": {
+                "consistency_score": 0.0,
+                "variance": 0.0,
+                "status": "INSUFFICIENT_DATA"
+            }
+        },
+        "CHOPPY_NOISE": {
+            "total_trades": 1,
+            "win_rate": 0.0,
+            "loss_rate": 100.0,
+            "total_pnl": -7400.8,
+            "max_drawdown": 1.48,
+            "average_rr": 0.0,
+            "final_capital": 492599.2,
+            "trades": [
+                {
+                    "trade_id": "BT_0050",
+                    "symbol": "CHOPPY_NOISE",
+                    "direction": "LONG",
+                    "entry_time": "2026-02-25 03:28:53",
+                    "entry_price": 20276.176679070617,
+                    "stop_loss": 20174.795795675265,
+                    "target": 20478.938445861324,
+                    "qty": 73,
+                    "reason": "Elite Pattern: BULLISH + BOS + EMA + VWAP confirmed.",
+                    "exit_price": 20174.795795675265,
+                    "pnl": -7400.8,
+                    "result": "LOSS",
+                    "exit_time": "2026-02-25 18:13:53"
+                }
+            ],
+            "behavior": {
+                "aggression_level": "LOW",
+                "selectivity": "LOOSE",
+                "stability": "STABLE"
+            },
+            "consistency": {
+                "consistency_score": 100.0,
+                "variance": 0.0,
+                "status": "REPLICABLE"
+            }
+        },
+        "HIGH_VOLATILITY": {
+            "total_trades": 1,
+            "win_rate": 0.0,
+            "loss_rate": 100.0,
+            "total_pnl": -7420.98,
+            "max_drawdown": 1.48,
+            "average_rr": 0.0,
+            "final_capital": 492579.02,
+            "trades": [
+                {
+                    "trade_id": "BT_0036",
+                    "symbol": "HIGH_VOLATILITY",
+                    "direction": "SHORT",
+                    "entry_time": "2026-02-24 23:58:53",
+                    "entry_price": 19275.271425874507,
+                    "stop_loss": 19371.64778300388,
+                    "target": 19082.51871161576,
+                    "qty": 77,
+                    "reason": "Character Change (CHoCH) detected in Bearish context.",
+                    "exit_price": 19371.64778300388,
+                    "pnl": -7420.98,
+                    "result": "LOSS",
+                    "exit_time": "2026-02-25 01:28:53"
+                }
+            ],
+            "behavior": {
+                "aggression_level": "LOW",
+                "selectivity": "LOOSE",
+                "stability": "STABLE"
+            },
+            "consistency": {
+                "consistency_score": 100.0,
+                "variance": 0.0,
+                "status": "REPLICABLE"
+            }
+        }
+    }
+}

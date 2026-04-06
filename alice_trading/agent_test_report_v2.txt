@@ -1,0 +1,27 @@
+--- SIMULATING MARKET FEED ---
+
+[Tick 1] Price: 22000.0
+[MarketContextAgent] -> NEUTRAL: Consolidation Phase: Price within noise zone (0.15%).
+[ValidationAgent] -> REJECTED: Awaiting Trend + Structure alignment for institutional execution.
+
+[Tick 2] Price: 22050.0
+[MarketContextAgent] -> APPROVED: Institutional context: Bullish Trend | Low Volatility | Moderate Liquidity.
+[StructurePatternAgent] -> APPROVED: Bullish CHoCH: Change of character at 22050.0 (Previous High cleared).
+[ValidationAgent] -> FILTERED: Filtered: Bullish context does not support CHoCH structural signal at this time.
+
+[Tick 3] Price: 22100.0
+[MarketContextAgent] -> APPROVED: Institutional context: Bullish Trend | Moderate Volatility | Moderate Liquidity.
+[StructurePatternAgent] -> APPROVED: Bullish BOS: Higher High established at 22100.0.
+[ValidationAgent] -> APPROVED: Trend + Structure aligned; Bullish Breakout confirmed with high confluence.
+
+[Tick 4] Price: 22080.0
+[MarketContextAgent] -> APPROVED: Institutional context: Bullish Trend | Moderate Volatility | Moderate Liquidity.
+[StructurePatternAgent] -> NEUTRAL: Price trading within established range.
+[ValidationAgent] -> REJECTED: Awaiting Trend + Structure alignment for institutional execution.
+
+[Tick 5] Price: 22150.0
+[MarketContextAgent] -> APPROVED: Institutional context: Bullish Trend | Moderate Volatility | Moderate Liquidity.
+[StructurePatternAgent] -> APPROVED: Bullish BOS: Higher High established at 22150.0.
+[ValidationAgent] -> APPROVED: Trend + Structure aligned; Bullish Breakout confirmed with high confluence.
+
+--- TEST COMPLETE ---

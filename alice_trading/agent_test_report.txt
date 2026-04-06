@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "<string>", line 49, in <module>
+    ctx_event = context_agent.process(symbol, ltp, close_price)
+  File "C:\Users\User\OneDrive\Pictures\Desktop\alice_trading\alice_trading\agents\v2\market_context.py", line 82, in process
+    self.manager.emit_event(event)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "<string>", line 26, in emit_event
+    print(f'[{event.agent_name}] -> {event.state}: {event.reason}')
+              ^^^^^^^^^^^^^^^^
+AttributeError: 'AgentEvent' object has no attribute 'agent_name'
+--- SIMULATING MARKET FEED ---
+
+[Tick 1] Price: 22000.0

@@ -1,0 +1,27 @@
+# Environment variables
+.env
+
+# API (as requested)
+API
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# Logs
+*.log
+run_log.txt
+EXECUTION_LOG.txt
+
+# Data files (Large CSVs)
+*.csv
+
+# OS files
+.DS_Store
+Thumbs.db
+node_modules
