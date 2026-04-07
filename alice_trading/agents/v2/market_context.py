@@ -92,7 +92,8 @@ class MarketContextAgent:
                 pa_desc = "Expanding range (HH + LL)"
 
         # 3. Dynamic Trend Analysis
-        dynamic_threshold = max(0.0015, volatility_pct * 0.5)
+        # Optimization: More sensitive threshold (0.0010 instead of 0.0015) for faster trend capture
+        dynamic_threshold = max(0.0010, volatility_pct * 0.4) 
         diff_pct = (ltp - close) / close if close > 0 else 0
         trend = "Sideways"
         state = "NEUTRAL"

@@ -130,7 +130,8 @@ const agentMetadata = {
     'Guidance': {
         name: "Guidance",
         role: "AI Strategic Advisor",
-        responsibilities: [
+
+        responsibilities: [
             "Provide meta-analysis",
             "Suggest optimizations",
             "Highlight anomalies",
@@ -550,9 +551,24 @@ async function initDashboard() {
     window.addEventListener('ACCOUNT_UPDATE', (event) => {
         const data = event.detail;
         if (data && data.balance !== undefined) {
-            if (state.metrics) state.metrics.total_capital = data.balance;
+            const bal = parseFloat(data.balance);
+            if (state.metrics) state.metrics.total_capital = bal;
+            const topCapEl = document.getElementById('select-total-cap');
+            if (topCapEl) {
+                let exists = false;
+                for (let i = 0; i < topCapEl.options.length; i++) {
+                    if (topCapEl.options[i].value === bal.toString()) exists = true;
+                }
+                if (!exists) {
+                    const opt = document.createElement('option');
+                    opt.value = bal.toString();
+                    opt.text = '₹' + fmtNum(bal) + (state.executionMode === 'REAL' ? ' (LIVE)' : '');
+                    topCapEl.add(opt, topCapEl.options[1]);
+                }
+                topCapEl.value = bal.toString();
+            }
             const capEl = document.getElementById('set-total-capital');
-            if (capEl && document.activeElement !== capEl) capEl.value = data.balance;
+            if (capEl && document.activeElement !== capEl) capEl.value = bal;
             updateDashboardUI(); // Immediate refresh
         }
     });
@@ -974,7 +990,7 @@ async function applyCapitalPreset(amount) {
 }
 
 function updateDashboardUI() {
-    const safeNumber = (val, fallback = '—') => {
+    const fmtNum = (val, fallback = '—') => {
         if (val === null || val === undefined || isNaN(val) || !isFinite(val)) return fallback;
         return val.toLocaleString('en-IN');
     };
@@ -1034,12 +1050,17 @@ function updateDashboardUI() {
     const topCapSelector = document.getElementById('select-total-cap');
     const settingsCapInput = document.getElementById('set-total-capital');
     if (topCapSelector && document.activeElement !== topCapSelector) {
-        const presets = ['50000', '100000', '500000'];
-        if (presets.includes(total.toString())) {
-            topCapSelector.value = total.toString();
-        } else {
-            topCapSelector.value = 'custom';
+        let exists = false;
+        for (let i = 0; i < topCapSelector.options.length; i++) {
+            if (topCapSelector.options[i].value === total.toString()) exists = true;
         }
+        if (!exists) {
+            const opt = document.createElement('option');
+            opt.value = total.toString();
+            opt.text = '₹' + fmtNum(total) + (state.executionMode === 'REAL' ? ' (LIVE)' : '');
+            topCapSelector.add(opt, topCapSelector.options[1]);
+        }
+        topCapSelector.value = total.toString();
     }
     if (settingsCapInput && document.activeElement !== settingsCapInput) {
         settingsCapInput.value = total;
@@ -1051,7 +1072,7 @@ function updateDashboardUI() {
 
     const exposureCardValue = document.getElementById('hud-used-cap');
     if (exposureCardValue) {
-        exposureCardValue.textContent = `₹${safeNumber(displayNumerator)} / ₹${safeNumber(total)}`;
+        exposureCardValue.textContent = `₹${fmtNum(displayNumerator)} / ₹${fmtNum(total)}`;
         const exposureCardLabel = exposureCardValue.previousElementSibling;
         if (exposureCardLabel) {
             exposureCardLabel.textContent = state.executionMode === 'PAPER' ? 'VIRTUAL CAPITAL (USED)' : 'CAPITAL EXPOSURE';
@@ -1061,14 +1082,14 @@ function updateDashboardUI() {
     // Calc Available (Free to allocate)
     const available = total - displayNumerator;
     const availLabel = document.querySelector('#hud-used-cap + .card-sub');
-    if (availLabel) availLabel.textContent = `Available: ₹${safeNumber(available)}`;
+    if (availLabel) availLabel.textContent = `Available: ₹${fmtNum(available)}`;
 
 
     // 2. KPI Cards (with NaN protection)
     const dailyPnl = state.metrics.daily_pnl;
     const hudProfit = document.getElementById('hud-profit');
     if (dailyPnl !== null && dailyPnl !== undefined && !isNaN(dailyPnl)) {
-        hudProfit.textContent = `₹${safeNumber(dailyPnl)}`;
+        hudProfit.textContent = `₹${fmtNum(dailyPnl)}`;
         hudProfit.className = `card-val ${dailyPnl >= 0 ? 'success-text' : 'danger-text'}`;
     } else {
         hudProfit.textContent = '—';
@@ -1078,7 +1099,7 @@ function updateDashboardUI() {
     const maxDrawdown = state.metrics.max_drawdown;
     const hudDrawdown = document.getElementById('hud-drawdown');
     if (maxDrawdown !== null && maxDrawdown !== undefined && !isNaN(maxDrawdown)) {
-        hudDrawdown.textContent = `₹${safeNumber(Math.abs(maxDrawdown))}`;
+        hudDrawdown.textContent = `₹${fmtNum(Math.abs(maxDrawdown))}`;
     } else {
         hudDrawdown.textContent = '—';
     }
@@ -1087,7 +1108,7 @@ function updateDashboardUI() {
     const riskMeter = document.getElementById('hud-risk-meter');
     const riskPercent = state.metrics.risk_used_percent;
     if (riskPercent !== null && riskPercent !== undefined && !isNaN(riskPercent)) {
-        riskMeter.textContent = `${safeNumber(riskPercent)}%`;
+        riskMeter.textContent = `${fmtNum(riskPercent)}%`;
         riskMeter.className = `card-val ${riskPercent > 80 ? 'danger-text' : ''}`;
     } else {
         riskMeter.textContent = '—';
@@ -1256,8 +1277,8 @@ function updateDashboardUI() {
                             <td><span class="symbol-tag">${t.instrument}</span></td>
                             <td><span class="badge ${t.direction === 'BUY' || t.direction === 'LONG' ? 'success' : 'danger'}">${t.direction}</span></td>
                             <td>${t.qty || t.quantity || 0}</td>
-                            <td class="mono">₹${safeNumber(t.entry_price)}</td>
-                            <td class="mono ${pnlPts >= 0 ? 'success-text' : 'danger-text'}">₹${safeNumber(ltp)}</td>
+                            <td class="mono">₹${fmtNum(t.entry_price)}</td>
+                            <td class="mono ${pnlPts >= 0 ? 'success-text' : 'danger-text'}">₹${fmtNum(ltp)}</td>
                             <td class="mono ${pnlPts >= 0 ? 'success-text' : 'danger-text'}">${pnlPts.toFixed(2)}</td>
                         </tr>
                     `;
@@ -1297,10 +1318,10 @@ function updateDashboardUI() {
                         <td>${t.timestamp?.includes('T') ? t.timestamp.split('T')[1].split('.')[0] : '--'}</td>
                         <td>${t.symbol || t.instrument}</td>
                         <td><span class="badge">${t.side || t.direction}</span></td>
-                        <td>${safeNumber(t.entry_price)}</td>
-                        <td>${safeNumber(t.exit_price || t.current_price)}</td>
+                        <td>${fmtNum(t.entry_price)}</td>
+                        <td>${fmtNum(t.exit_price || t.current_price)}</td>
                         <td>${(t.pnl_points || 0).toFixed(2)}</td>
-                        <td style="text-align: right;" class="${(t.pnl || 0) >= 0 ? 'success-text' : 'danger-text'}">₹${safeNumber(t.pnl || 0)}</td>
+                        <td style="text-align: right;" class="${(t.pnl || 0) >= 0 ? 'success-text' : 'danger-text'}">₹${fmtNum(t.pnl || 0)}</td>
                     </tr>
                 `).join('');
         }

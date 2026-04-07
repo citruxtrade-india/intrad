@@ -26,6 +26,10 @@ class BrokerDataAdapter(ABC):
     async def unsubscribe(self, symbols: List[Dict[str, Any]]):
         pass
 
+    @abstractmethod
+    async def get_balance(self) -> float:
+        return 0.0
+
 class AliceBlueAdapter(BrokerDataAdapter):
     def __init__(self, user_id, api_key, totp_secret, callback, on_disconnect=None):
         self.user_id = user_id
@@ -45,26 +49,51 @@ class AliceBlueAdapter(BrokerDataAdapter):
             print(f"[ADAPTER] Authenticating user {self.user_id}...")
             alice_client = Aliceblue(user_id=self.user_id, api_key=self.api_key)
             self.alice = alice_client
-            session_res = alice_client.get_session_id(pyotp.TOTP(self.totp_secret).now())
+            
+            # Use pyotp to get current TOTP
+            otp = pyotp.TOTP(self.totp_secret).now()
+            print(f"[ADAPTER] Generated OTP: {otp}")
+            
+            session_res = alice_client.get_session_id(otp)
+            print(f"[ADAPTER] Session Result: {session_res}")
             
             if not session_res or not isinstance(session_res, dict) or not session_res.get("sessionID"):
-                print(f"[ADAPTER] Login failed: {session_res}")
+                print(f"[ADAPTER] Login failed or returned invalid response: {session_res}")
                 return False
             
             # Set session ID explicitly if library doesn't
             if getattr(alice_client, 'session_id', None) is None:
                 alice_client.session_id = session_res.get('sessionID')
             
-            print("[ADAPTER] Authentication successful. Starting WebSocket...")
+            print(f"[ADAPTER] Authentication successful. Session: {alice_client.session_id}")
             
-            alice_client.start_websocket(
+            # Manual WebSocket implementation to bypass broken pya3 version hardcoded to UAT
+            import hashlib
+            import websocket
+            import threading
+            
+            # Calculate ENC token expected by Alice Blue WebSocket
+            # Formula: SHA256(SHA256(session_id))
+            sha256_enc1 = hashlib.sha256(alice_client.session_id.encode('utf-8')).hexdigest()
+            self.enc_token = hashlib.sha256(sha256_enc1.encode('utf-8')).hexdigest()
+            
+            # Production WebSocket URL
+            ws_url = "wss://ws1.aliceblueonline.com/NorenWS/"
+            print(f"[ADAPTER] Connecting to Production WebSocket: {ws_url}")
+            
+            def run_websocket():
+                self.ws_app = websocket.WebSocketApp(
+                    ws_url,
+                    on_open=self._on_ws_open,
+                    on_message=self._on_ws_message,
+                    on_error=self._on_ws_error,
+                    on_close=self._on_ws_close
+                )
+                self.ws_app.run_forever()
 
-                socket_open_callback=self._on_open,
-                socket_close_callback=self._on_close,
-                socket_error_callback=self._on_error,
-                subscription_callback=self.callback,
-                run_in_background=True
-            )
+            self.ws_thread = threading.Thread(target=run_websocket, daemon=True)
+            self.ws_thread.start()
+            print("[ADAPTER] WebSocket thread started.")
             
             # Wait for connection (up to 15 seconds)
             for i in range(30):
@@ -73,12 +102,54 @@ class AliceBlueAdapter(BrokerDataAdapter):
                     break
                 await asyncio.sleep(0.5)
             
+            if not self.is_connected:
+                print("[ADAPTER] WebSocket failed to connect within timeout.")
+                
             return self.is_connected
         except Exception as e:
             print(f"[ADAPTER] Connection error: {e}")
             import traceback
             traceback.print_exc()
             return False
+
+    def _on_ws_open(self, ws):
+        import json
+        print("[ADAPTER] WebSocket base connection established. Sending auth...")
+        init_con = {
+            "susertoken": self.enc_token,
+            "t": "c",
+            "actid": self.user_id + "_API",
+            "uid": self.user_id + "_API",
+            "source": "API"
+        }
+        ws.send(json.dumps(init_con))
+
+    def _on_ws_message(self, ws, message):
+        import json
+        try:
+            data = json.loads(message)
+            if data.get("s") == "OK" and data.get("t") == "ck":
+                self.is_connected = True
+                print("[ADAPTER] WebSocket Authentication Successful")
+            else:
+                # Forward feed data to the callback
+                if self.callback:
+                    self.callback(data)
+        except Exception as e:
+            print(f"[ADAPTER] Error processing message: {e}")
+
+    def _on_ws_error(self, ws, error):
+        print(f"[ADAPTER] WebSocket Error: {error}")
+        self.is_connected = False
+
+    def _on_ws_close(self, ws, close_status, close_msg):
+        print(f"[ADAPTER] WebSocket Closed: {close_status} - {close_msg}")
+        self.is_connected = False
+        if self.on_disconnect:
+            try:
+                self.on_disconnect()
+            except:
+                pass
 
     def _on_open(self):
         self.is_connected = True
@@ -103,9 +174,14 @@ class AliceBlueAdapter(BrokerDataAdapter):
                 print(f"[ADAPTER] Error calling on_disconnect: {e}")
 
     async def disconnect(self):
+        if hasattr(self, 'ws_app') and self.ws_app:
+            try:
+                self.ws_app.close()
+            except:
+                pass
         if self.alice:
             try:
-                # Try multiple possible method names
+                # Try multiple possible library method names just in case
                 stopper = getattr(self.alice, "stop_websocket", None) or getattr(self.alice, "close_websocket", None)
                 if callable(stopper):
                     stopper()
@@ -138,19 +214,33 @@ class AliceBlueAdapter(BrokerDataAdapter):
         
         if instruments:
             try:
-                # pya3 v1.0.30: subscribe takes (self, instrument_list) only
-                alice_client.subscribe(instruments)
-                print(f"[ADAPTER] Subscribed to {len(instruments)} instruments successfully")
+                # Send manual subscription message since we are controlling the socket
+                import json
+                sub_params = ""
+                for i, inst in enumerate(instruments):
+                    end_point = "" if i == len(instruments)-1 else "#"
+                    # Handle both dictionary-like and object-like instruments (pya3 returns Instrument object)
+                    exch = getattr(inst, 'exchange', getattr(inst, 'exch', 'NSE'))
+                    token = getattr(inst, 'token', '')
+                    sub_params += f"{exch}|{token}{end_point}"
+                
+                if sub_params:
+                    sub_message = {
+                        "t": "t",
+                        "k": sub_params,
+                        "m": "compact_marketdata"
+                    }
+                    if hasattr(self, 'ws_app') and self.is_connected:
+                        self.ws_app.send(json.dumps(sub_message))
+                        print(f"[ADAPTER] Manually sent subscription for {len(instruments)} instruments")
+                
+                # We also call library subscribe for state tracking if it doesn't crash
+                try:
+                    alice_client.subscribe(instruments)
+                except:
+                    pass
             except Exception as e:
-                print(f"[ADAPTER] Subscription failed: {e}")
-                # Try one-by-one as fallback
-                for inst in instruments:
-                    try:
-                        alice_client.subscribe([inst])
-                    except Exception as e2:
-                        print(f"[ADAPTER] Single subscribe failed for {inst}: {e2}")
-
-
+                print(f"[ADAPTER] Subscription error: {e}")
 
     async def get_snapshot(self, exchange: str, token: int) -> Optional[Dict[str, Any]]:
         """Fetch a single scrip data snapshot via REST."""
@@ -159,21 +249,18 @@ class AliceBlueAdapter(BrokerDataAdapter):
             return None
         
         try:
-            instrument = alice_client.get_instrument_by_token(exchange, token)
-            res = alice_client.get_scrip_info(instrument)
-
+            # get_instrument_by_token returns metadata
+            inst = alice_client.get_instrument_by_token(exchange, token)
+            if not inst:
+                return None
+                
+            # get_scrip_info returns the actual REST snapshot (LTP, bid, ask, etc.)
+            res = alice_client.get_scrip_info(inst)
             
-            if res and res.get('stat') == 'Ok':
-                # Explicitly check for presence of data to avoid false 0.0
-                ltp_raw = res.get('LTP')
-                try:
-                    ltp_val = float(ltp_raw) if ltp_raw is not None else 0.0
-                except ValueError:
-                    ltp_val = 0.0
-
-                if ltp_val <= 0:
-                    # Placeholder or no-data state
-                    return None
+            if res and isinstance(res, dict) and res.get('stat') == 'Ok':
+                # Map technical fields: lp=LTP, c=Close, v=Volume
+                ltp_val = float(res.get('lp', 0) or 0)
+                if ltp_val <= 0: return None
 
                 return {
                     "ltp": ltp_val,
@@ -220,6 +307,25 @@ class AliceBlueAdapter(BrokerDataAdapter):
         except Exception as e:
             print(f"[ADAPTER] Historical data error: {e}")
         return []
+
+    async def get_balance(self) -> float:
+        """Fetch real-time account cash balance via Alice Blue REST."""
+        alice_client = self.alice
+        if not alice_client:
+            return 0.0
+        try:
+            # pya3 returns a list of dictionaries (one per segment or 'ALL')
+            res = alice_client.get_balance()
+            if isinstance(res, list):
+                for margin in res:
+                    if margin.get('stat') == 'Ok' and margin.get('symbol') == 'ALL':
+                        # Use cashmarginavailable as the primary funding indicator
+                        return float(margin.get('cashmarginavailable', 0) or 0)
+            elif isinstance(res, dict) and res.get('stat') == 'Ok':
+                return float(res.get('cashmarginavailable', 0) or 0)
+        except Exception as e:
+            print(f"[ADAPTER] Alice Blue balance fetch error: {e}")
+        return 0.0
 
     async def unsubscribe(self, symbols: List[Dict[str, Any]]):
         # pya3 doesn't have a direct unsubscribe for all, but we can try

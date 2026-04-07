@@ -407,12 +407,16 @@ def run_agent_pipeline(symbol, ltp, close, user_id="admin"):
 
     if val_event.get("state") == "APPROVED":
         # 3. Global Selective Execution (Ranking)
-        rank_threshold = 72
+        rank_threshold = 62 # Lowered from 72 for faster execution
         if state.learning_engine.system_mode == "DEFENSIVE": rank_threshold = 85 # Ultra-strict on defense
             
+        # NIFTY Optimization Override
+        if symbol == "NIFTY":
+            trade_score += 5 # Institutional priority boost
+            
         if trade_score < rank_threshold:
-            state.learning_engine.log_skip(symbol, f"Meta Ranking Rejection ({opp} Opportunity)", strategy, mood, trade_score)
-            state.add_log(f"🧠 [META-INT] {symbol} blocked. Health {state.learning_engine.health_score}% | Rank {trade_score}.")
+            state.learning_engine.log_skip(symbol, f"Meta Ranking Rejection (Rank {trade_score} < Req {rank_threshold})", strategy, mood, trade_score)
+            state.add_log(f"🧠 [META-INT] {symbol} blocked. Health {state.learning_engine.health_score}% | Rank {trade_score} < {rank_threshold}.")
         else:
             # 4. Risk & Compliance — Capital Prioritization (Score-linked qty)
             # Pass trade_score to enable intelligence-based sizing
@@ -710,6 +714,7 @@ async def get_metrics(request: Request):
             "intelligence": intel,
             "market_data": state.market_data,
             "is_running": state.is_running,
+            "execution_mode": state.execution_mode,
             "data_engine_status": LiveDataManager(user_id=user_id).status,
             "timestamp": time.time()
         }
@@ -849,9 +854,11 @@ async def update_monitored_instruments(request: Request):
     return {"status": "success", "monitored": list(state.monitored_instruments)}
 
 @app.get("/market-data/{symbol}")
-async def get_live_market_data(symbol: str):
+async def get_live_market_data(request: Request, symbol: str):
     """Production-spec Live Market Data Endpoint with async sync"""
-    ldm = LiveDataManager()
+    user_id = get_session_id(request)
+    state = session_mgr.get_state(user_id)
+    ldm = LiveDataManager(user_id=user_id)
     symbol = symbol.upper()
     data = ldm.get_market_snapshot(symbol)
     
@@ -1124,9 +1131,20 @@ async def get_symbol_data(request: Request, symbol: str):
     }
 
 @app.get("/api/v1/account/balance")
-def get_balance(request: Request):
+async def get_balance(request: Request):
     user_id = get_session_id(request)
     state = session_mgr.get_state(user_id)
+    
+    # In REAL mode, fetch actual available funds from broker
+    if state.execution_mode == "REAL" and state.alice:
+        try:
+            real_bal = await state.alice.get_balance()
+            if real_bal > 0:
+                with state.lock:
+                    state.metrics["total_capital"] = real_bal
+        except Exception as e:
+            state.add_log(f"Balance Refresh Failed: {str(e)}")
+            
     return {"status": "success", "balance": state.metrics["total_capital"]}
 
 @app.get("/api/v1/agents/status")
@@ -1177,7 +1195,20 @@ def system_start(request: Request):
     state = session_mgr.get_state(user_id)
     state.is_running = True
     state.add_log(">>> ALGO SYSTEM STARTED: LIVE MONITORING <<<")
+    # Trigger data engine if not already running
+    asyncio.create_task(start_data_engine(user_id=user_id))
     return {"status": "success"}
+
+@app.post("/api/v1/system/restart-engine")
+async def restart_engine(request: Request):
+    user_id = get_session_id(request)
+    state = session_mgr.get_state(user_id)
+    state.add_log(f"Manual data engine restart requested by {user_id}")
+    await stop_data_engine(user_id=user_id)
+    # Give it a second to clean up
+    await asyncio.sleep(1)
+    asyncio.create_task(start_data_engine(user_id=user_id))
+    return {"status": "success", "message": "Engine restart initiated."}
 
 @app.post("/api/v1/system/mode")
 async def set_execution_mode(request: Request):
@@ -1517,17 +1548,14 @@ async def manual_order(request: Request):
     return {"status": "success", "result": result}
 
 
-if __name__ == "__main__":
+@app.on_event("startup")
+async def startup_event():
     # Pre-provision the default admin session and start its data engine
-    def initial_start():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        # Ensure the default admin session exists
-        session_mgr.get_state("admin")
-        loop.run_until_complete(start_data_engine(user_id="admin"))
-        
-    threading.Thread(target=initial_start, daemon=True).start()
-    
-    print("\n>>> Anti-Gravity Institutional Trading Platform is READY!")
-    print(">>> Dashboard: http://localhost:8001")
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    print("\n>>> Anti-Gravity Institutional Trading Platform is STARTING...")
+    session_mgr.get_state("admin")
+    # Start the data engine in the background without blocking the main event loop
+    asyncio.create_task(start_data_engine(user_id="admin"))
+    print(">>> Dashboard: http://localhost:8002")
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8002)

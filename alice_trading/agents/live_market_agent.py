@@ -8,7 +8,7 @@ import inspect
 import threading
 
 # Centralized pya3 utils
-from ..core.pya3_utils import LiveFeedType
+from core.pya3_utils import LiveFeedType
 
 from shared.data_bus import DataBus
 

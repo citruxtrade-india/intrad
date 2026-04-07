@@ -53,7 +53,7 @@ class ValidationAgent:
                 reason = f"Elite Pattern: {pattern_genome} confirmed."
             else:
                 state = "FILTERED"
-                confidence = 65
+                confidence = 68 # Increased from 65
                 reason = "BOS detected, but pending EMA/VWAP alignment."
         elif mood == "BEARISH" and signal == "CHoCH":
             allowed = True
@@ -62,7 +62,7 @@ class ValidationAgent:
             reason = "Character Change (CHoCH) detected in Bearish context."
         elif signal != "NONE":
             state = "FILTERED"
-            confidence = 50
+            confidence = 60 # Increased from 50
             reason = f"Filtered: {mood} context incompatible with {signal} signal."
         
         # 5. Pre-Trade Bias (Predictive boost)
