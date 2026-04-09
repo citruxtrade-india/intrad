@@ -1668,13 +1668,13 @@ body.light-theme .grid-col {
 
 /* --- POSITIONS & TERMINAL --- */
 .positions-section {
-    display: none;
-    /* Hidden from initial dashboard flex flow */
+    display: block;
+    /* Unlocked for dashboard flow */
 }
 
 .footer-terminal {
-    display: none;
-    /* Hidden from initial dashboard flex flow */
+    display: block;
+    /* Unlocked for dashboard flow */
 }
 
 /* --- STATUS BADGES --- */

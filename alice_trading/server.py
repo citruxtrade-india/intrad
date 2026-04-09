@@ -1130,22 +1130,258 @@ async def get_symbol_data(request: Request, symbol: str):
         "data_status": data.get("status", "LIVE")
     }
 
+async def _fetch_real_balance_direct(state: GlobalExchangeState) -> float:
+    """
+    Directly fetch balance from Alice Blue REST API without requiring WebSocket.
+    Falls back gracefully on any error.
+    """
+    try:
+        import pyotp as _pyotp
+        from pya3 import Aliceblue as _Aliceblue
+
+        creds = state.broker_credentials
+        eff_user_id  = creds.get("user_id")  or USER_ID
+        eff_api_key  = creds.get("api_key")  or API_KEY
+        eff_totp     = creds.get("totp_secret") or TOTP_SECRET
+
+        if not eff_api_key or not eff_user_id or not eff_totp:
+            return None
+
+        otp = _pyotp.TOTP(eff_totp).now()
+        alice = _Aliceblue(user_id=eff_user_id, api_key=eff_api_key)
+        session_res = alice.get_session_id(otp)
+
+        if not session_res or not isinstance(session_res, dict) or not session_res.get("sessionID"):
+            state.add_log(f"[Balance] REST login failed: {session_res}")
+            return None
+
+        if getattr(alice, 'session_id', None) is None:
+            alice.session_id = session_res.get('sessionID')
+
+        res = alice.get_balance()
+        if isinstance(res, list):
+            for margin in res:
+                if margin.get('stat') == 'Ok' and margin.get('symbol') == 'ALL':
+                    return float(margin.get('cashmarginavailable', 0) or 0)
+        elif isinstance(res, dict) and res.get('stat') == 'Ok':
+            return float(res.get('cashmarginavailable', 0) or 0)
+
+    except Exception as e:
+        state.add_log(f"[Balance] Direct REST fetch error: {e}")
+
+    return None
+
+
 @app.get("/api/v1/account/balance")
 async def get_balance(request: Request):
     user_id = get_session_id(request)
     state = session_mgr.get_state(user_id)
-    
-    # In REAL mode, fetch actual available funds from broker
-    if state.execution_mode == "REAL" and state.alice:
+
+    if state.execution_mode == "REAL":
         try:
-            real_bal = await state.alice.get_balance()
-            if real_bal > 0:
+            # First try the existing connected adapter (fast path)
+            ldm = LiveDataManager(user_id=user_id)
+            real_bal = None
+
+            adapter = getattr(ldm, 'adapter', None)
+            if adapter and getattr(adapter, 'alice', None):
+                real_bal = await adapter.get_balance()
+
+            # If adapter isn't connected, fall back to direct REST login
+            if real_bal is None:
+                real_bal = await _fetch_real_balance_direct(state)
+
+            if real_bal is not None:
                 with state.lock:
                     state.metrics["total_capital"] = real_bal
+                state.add_log(f"[Balance] Live balance fetched: ₹{real_bal:,.2f}")
+
         except Exception as e:
-            state.add_log(f"Balance Refresh Failed: {str(e)}")
-            
+            state.add_log(f"[Balance] Refresh failed: {str(e)}")
+
     return {"status": "success", "balance": state.metrics["total_capital"]}
+
+@app.get("/api/v1/account/holdings")
+async def get_holdings(request: Request):
+    """
+    Fetch portfolio holdings / invested positions.
+    - REAL mode: fetches live holdings from Alice Blue REST API.
+    - PAPER mode: returns open paper engine positions.
+    - MOCK/SIMULATION: returns empty list.
+    """
+    user_id = get_session_id(request)
+    state = session_mgr.get_state(user_id)
+    holdings = []
+
+    if state.execution_mode == "REAL":
+        def _fetch_holdings_sync():
+            """Run Alice Blue calls in a thread, reusing session if possible."""
+            import pyotp as _pyotp
+            from pya3 import Aliceblue as _Aliceblue
+
+            creds = state.broker_credentials
+            eff_user_id = creds.get("user_id") or USER_ID
+            eff_api_key = creds.get("api_key") or API_KEY
+            eff_totp    = creds.get("totp_secret") or TOTP_SECRET
+
+            if not (eff_api_key and eff_user_id and eff_totp):
+                return []
+
+            # Reuse or Create Alice Blue Session
+            alice = getattr(state, '_alice_holdings_obj', None)
+            if not alice:
+                alice = _Aliceblue(user_id=eff_user_id, api_key=eff_api_key)
+                state._alice_holdings_obj = alice
+            
+            # Check if session is valid; if not, login
+            if not getattr(alice, 'session_id', None):
+                otp = _pyotp.TOTP(eff_totp).now()
+                session_res = alice.get_session_id(otp)
+                if session_res and isinstance(session_res, dict) and session_res.get("sessionID"):
+                    alice.session_id = session_res.get('sessionID')
+                else:
+                    return []
+
+            result = []
+
+            # --- Demat holdings ---
+            try:
+                raw = alice.get_holding_positions()
+                if isinstance(raw, dict) and raw.get('stat') == 'Ok':
+                    for h in raw.get('HoldingVal', []):
+                        qty = float(h.get('HUqty', 0) or 0) + float(h.get('Holdqty', 0) or 0)
+                        sellable = float(h.get('SellableQty', 0) or 0)
+                        if qty <= 0 and sellable <= 0:
+                            continue
+                        
+                        effective_qty = max(qty, sellable)
+                        avg_price = float(h.get('Price', 0) or 0)
+                        symbol_name = (h.get('Nsetsym') or h.get('Bsetsym') or 'UNKNOWN')
+                        symbol_name = symbol_name.replace('-EQ', '').replace('-BE', '').strip()
+                        
+                        # LTP logic: Ltp is current. LTnse/LTbse is previous close.
+                        ltp = float(h.get('Ltp') or h.get('LTnse') or h.get('LTbse') or avg_price)
+                        prev_close = float(h.get('LTnse') or h.get('LTbse') or ltp)
+                        exchange = 'NSE' if h.get('Exch1') == 'nse_cm' else 'BSE'
+                        
+                        invested     = effective_qty * avg_price
+                        current_val  = effective_qty * ltp
+                        pnl_net      = current_val - invested
+                        pnl_net_pct  = (pnl_net / invested * 100) if invested else 0
+                        
+                        pnl_day      = (ltp - prev_close) * effective_qty
+                        pnl_day_pct  = ((ltp / prev_close - 1) * 100) if prev_close else 0
+
+                        result.append({
+                            "symbol": symbol_name, "qty": effective_qty,
+                            "avg_price": avg_price, "ltp": ltp,
+                            "invested": round(invested, 4), "current_value": round(current_val, 4),
+                            "pnl": round(pnl_net, 4), "pnl_pct": round(pnl_net_pct, 2),
+                            "pnl_day": round(pnl_day, 4), "pnl_day_pct": round(pnl_day_pct, 2),
+                            "exchange": exchange, "type": "HOLDING"
+                        })
+            except Exception as e:
+                print(f"[Holdings] Demat fetch error: {e}")
+                # Reset session on failure to force relogin next time
+                alice.session_id = None 
+
+            # --- Intraday positions ---
+            try:
+                day_pos = alice.get_daywise_positions()
+                if isinstance(day_pos, list):
+                    for p in day_pos:
+                        if p.get('stat') != 'Ok':
+                            continue
+                        qty = float(p.get('netqty', 0) or 0)
+                        if abs(qty) <= 0 and float(p.get('rpnl', 0) or 0) == 0:
+                            continue
+                        
+                        symbol_name = p.get('tsym', 'UNKNOWN').replace('-EQ', '').replace('-FUT', '')
+                        avg_price = float(p.get('netavgprc', 0) or 0)
+                        ltp = float(p.get('lp', 0) or avg_price)
+                        
+                        # For intraday, invested is meaningful for open positions
+                        invested = abs(qty) * avg_price
+                        current_val = abs(qty) * ltp
+                        
+                        # Day P&L for intraday is URM+RPNL
+                        pnl_day = float(p.get('urmtom', 0) or 0) + float(p.get('rpnl', 0) or 0)
+                        # Net P&L for intraday is same as Day P&L in most cases unless carried over
+                        pnl_net = pnl_day 
+                        
+                        pnl_day_pct = (pnl_day / invested * 100) if invested else 0
+                        
+                        result.append({
+                            "symbol": symbol_name, "qty": qty,
+                            "avg_price": avg_price, "ltp": ltp,
+                            "invested": round(invested, 4), "current_value": round(current_val, 4),
+                            "pnl": round(pnl_net, 4), "pnl_pct": round(pnl_day_pct, 2),
+                            "pnl_day": round(pnl_day, 4), "pnl_day_pct": round(pnl_day_pct, 2),
+                            "exchange": p.get('exch', 'NSE'), "type": "INTRADAY"
+                        })
+            except Exception as e:
+                print(f"[Holdings] Intraday fetch error: {e}")
+
+            return result
+
+        try:
+            holdings = await asyncio.wait_for(
+                asyncio.to_thread(_fetch_holdings_sync),
+                timeout=15.0
+            )
+        except asyncio.TimeoutError:
+            state.add_log("[Holdings] Fetch timed out after 15s")
+        except Exception as e:
+            state.add_log(f"[Holdings] Fetch error: {e}")
+
+
+    elif state.execution_mode == "PAPER":
+        # Return open paper positions
+        try:
+            positions = state.paper_engine.get_positions()
+            with state.lock:
+                prices = {s: d["ltp"] for s, d in state.market_data.items() if d.get("ltp")}
+            for p in positions:
+                sym = p.get("symbol", "")
+                qty = float(p.get("qty", 0))
+                avg_price = float(p.get("avg_price", 0))
+                ltp = prices.get(sym, avg_price)
+                invested = qty * avg_price
+                current_val = qty * ltp
+                pnl = current_val - invested
+                pnl_pct = (pnl / invested * 100) if invested else 0
+                holdings.append({
+                    "symbol": sym, "qty": qty, "avg_price": avg_price, "ltp": ltp,
+                    "invested": round(invested, 4), "current_value": round(current_val, 4),
+                    "pnl": round(pnl, 4), "pnl_pct": round(pnl_pct, 2),
+                    "pnl_day": round(pnl, 4), "pnl_day_pct": round(pnl_pct, 2),
+                    "exchange": p.get("exchange", "NSE"), "type": "PAPER"
+                })
+        except Exception as e:
+            state.add_log(f"[Holdings] Paper position error: {e}")
+
+    total_invested = round(sum(h["invested"] for h in holdings), 4)
+    total_current  = round(sum(h["current_value"] for h in holdings), 4)
+    total_pnl_net  = round(sum(h["pnl"] for h in holdings), 4)
+    total_pnl_day  = round(sum(h["pnl_day"] for h in holdings), 4)
+    
+    total_prev_val = total_current - total_pnl_day
+    
+    return {
+        "status": "success",
+        "mode": state.execution_mode,
+        "holdings": holdings,
+        "summary": {
+            "total_invested": total_invested,
+            "total_current_value": total_current,
+            "total_pnl": total_pnl_net,
+            "total_pnl_day": total_pnl_day,
+            "pnl_pct": round((total_pnl_net / total_invested * 100), 2) if total_invested else 0,
+            "pnl_day_pct": round((total_pnl_day / total_prev_val * 100), 2) if total_prev_val else 0,
+            "count": len(holdings)
+        }
+    }
+
 
 @app.get("/api/v1/agents/status")
 def get_agent_status(request: Request):
@@ -1498,7 +1734,9 @@ async def tradingview_webhook(request: Request):
         ltp = 0.0
     
     # Route the order via the new Execution Router
-    state.execution_router.broker = state.alice
+    ldm = LiveDataManager(user_id=user_id)
+    if getattr(ldm, 'adapter', None):
+        state.execution_router.broker = ldm.adapter.alice
     result = state.execution_router.route_order(symbol, side, qty, ltp, mode=state.execution_mode, state_logger=state.add_log)
     
     return {"status": "success", "webhook_result": result}
@@ -1542,7 +1780,9 @@ async def manual_order(request: Request):
         execution_price = float(price)
 
     # Route the order via the Execution Router
-    state.execution_router.broker = state.alice
+    ldm = LiveDataManager(user_id=user_id)
+    if getattr(ldm, 'adapter', None):
+        state.execution_router.broker = ldm.adapter.alice
     result = state.execution_router.route_order(symbol, side, qty, execution_price, mode=state.execution_mode, state_logger=state.add_log)
     
     return {"status": "success", "result": result}

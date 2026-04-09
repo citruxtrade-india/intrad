@@ -308,11 +308,11 @@ class AliceBlueAdapter(BrokerDataAdapter):
             print(f"[ADAPTER] Historical data error: {e}")
         return []
 
-    async def get_balance(self) -> float:
+    async def get_balance(self) -> Optional[float]:
         """Fetch real-time account cash balance via Alice Blue REST."""
         alice_client = self.alice
         if not alice_client:
-            return 0.0
+            return None
         try:
             # pya3 returns a list of dictionaries (one per segment or 'ALL')
             res = alice_client.get_balance()
@@ -325,7 +325,7 @@ class AliceBlueAdapter(BrokerDataAdapter):
                 return float(res.get('cashmarginavailable', 0) or 0)
         except Exception as e:
             print(f"[ADAPTER] Alice Blue balance fetch error: {e}")
-        return 0.0
+        return None
 
     async def unsubscribe(self, symbols: List[Dict[str, Any]]):
         # pya3 doesn't have a direct unsubscribe for all, but we can try

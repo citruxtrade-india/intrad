@@ -732,9 +732,126 @@ async function fetchSystemData() {
             } catch (e) { console.warn("Paper Data Sync Failed", e); }
         }
 
+        // --- HOLDINGS SYNC (REAL/PAPER mode) ---
+        if (state.executionMode === 'REAL' || state.executionMode === 'PAPER') {
+            fetchHoldings();
+        } else {
+            renderHoldings(null); // Clear table in non-live modes
+        }
+
         updateDashboardUI();
     } catch (err) { console.error("API Sync Failed", err); }
 }
+
+// ---- HOLDINGS PANEL ----
+
+let _holdingsFetchInProgress = false;
+
+async function fetchHoldings() {
+    const btn = document.getElementById('btn-holdings-refresh');
+    if (_holdingsFetchInProgress) return;
+    _holdingsFetchInProgress = true;
+    
+    if (btn) {
+        btn.textContent = '↻ REFRESHING...';
+        btn.style.opacity = '0.5';
+        btn.style.pointerEvents = 'none';
+    }
+
+    try {
+        const res = await fetch('/api/v1/account/holdings');
+        if (res.ok) {
+            const data = await res.json();
+            renderHoldings(data);
+        }
+    } catch (e) {
+        console.warn('Holdings fetch failed', e);
+    } finally {
+        _holdingsFetchInProgress = false;
+        if (btn) {
+            btn.textContent = '↻ REFRESH';
+            btn.style.opacity = '1';
+            btn.style.pointerEvents = 'auto';
+        }
+    }
+}
+
+function renderHoldings(data) {
+    const tbody = document.getElementById('holdings-table-body');
+    const badge = document.getElementById('holdings-mode-badge');
+    const investedEl = document.getElementById('hld-invested');
+    const currentEl  = document.getElementById('hld-current');
+    const pnlEl      = document.getElementById('hld-pnl');
+    const pnlDayEl   = document.getElementById('hld-pnl-day');
+    if (!tbody) return;
+
+    // Update badge
+    if (badge) {
+        const mode = data ? data.mode : (state.executionMode || 'MOCK');
+        const colors = { REAL: '#ff4757', PAPER: '#ffa502', MOCK: '#747d8c', SIMULATION: '#2ed573' };
+        badge.textContent = mode;
+        badge.style.background = `${colors[mode] || '#333'}22`;
+        badge.style.color = colors[mode] || '#aaa';
+    }
+
+    if (!data || !data.holdings || data.holdings.length === 0) {
+        const msg = !data || data.mode === 'MOCK' || data.mode === 'SIMULATION'
+            ? 'Switch to REAL or PAPER mode to view holdings'
+            : 'No holdings / open positions found';
+        tbody.innerHTML = `<tr><td colspan="9" class="empty-cell">${msg}</td></tr>`;
+        if (investedEl) investedEl.textContent = '₹0';
+        if (currentEl)  currentEl.textContent  = '₹0';
+        if (pnlEl)      pnlEl.textContent       = '₹0';
+        if (pnlDayEl)   pnlDayEl.textContent    = '₹0';
+        return;
+    }
+
+    const { holdings, summary } = data;
+
+    // Summary bar
+    if (investedEl) investedEl.textContent = '₹' + fmtNum(summary.total_invested);
+    if (currentEl)  currentEl.textContent  = '₹' + fmtNum(summary.total_current_value);
+    if (pnlEl) {
+        const p = summary.total_pnl;
+        pnlEl.textContent = (p >= 0 ? '+' : '') + '₹' + fmtNum(Math.abs(p)) + ` (${summary.pnl_pct}%)`;
+        pnlEl.style.color = p >= 0 ? 'var(--success)' : 'var(--danger)';
+    }
+    if (pnlDayEl) {
+        const pd = summary.total_pnl_day;
+        pnlDayEl.textContent = (pd >= 0 ? '+' : '') + '₹' + fmtNum(Math.abs(pd)) + ` (${summary.pnl_day_pct}%)`;
+        pnlDayEl.style.color = pd >= 0 ? 'var(--success)' : 'var(--danger)';
+    }
+
+    // Rows
+    tbody.innerHTML = holdings.map(h => {
+        const pnlNetColor = h.pnl >= 0 ? 'var(--success)' : 'var(--danger)';
+        const pnlDayColor = h.pnl_day >= 0 ? 'var(--success)' : 'var(--danger)';
+        
+        const pnlNetSign  = h.pnl >= 0 ? '+' : '';
+        const pnlDaySign  = h.pnl_day >= 0 ? '+' : '';
+        
+        const typeTag  = h.type ? `<span style="font-size:0.5rem;opacity:0.4;display:block;">${h.type}</span>` : '';
+        
+        return `
+        <tr style="transition: background 0.2s;" onmouseenter="this.style.background='rgba(0,243,255,0.04)'" onmouseleave="this.style.background=''">
+            <td style="line-height:1.2;">
+                <div style="font-weight:700; color:var(--text-main);">${h.symbol}</div>
+                ${typeTag}
+            </td>
+            <td style="font-weight:600;">${h.qty}</td>
+            <td style="opacity:0.8;">₹${fmtNum(h.avg_price)}</td>
+            <td style="color:var(--accent);">₹${fmtNum(h.ltp)}</td>
+            <td style="font-weight:700;">₹${fmtNum(h.current_value)}</td>
+            
+            <td style="color:${pnlDayColor}; opacity:0.9;">${pnlDaySign}₹${fmtNum(Math.abs(h.pnl_day))}</td>
+            <td style="color:${pnlDayColor};">${pnlDaySign}${h.pnl_day_pct}%</td>
+            
+            <td style="color:${pnlNetColor}; font-weight:800;">${pnlNetSign}₹${fmtNum(Math.abs(h.pnl))}</td>
+            <td style="color:${pnlNetColor}; font-weight:700;">${pnlNetSign}${h.pnl_pct}%</td>
+        </tr>`;
+    }).join('');
+}
+
 
 async function fetchRiskRules() {
     try {
@@ -2720,7 +2837,7 @@ function fmtNum(n) {
     if (n === null || n === undefined || isNaN(n)) return '—';
     if (Math.abs(n) >= 1e7) return (n / 1e7).toFixed(2) + 'Cr';
     if (Math.abs(n) >= 1e5) return (n / 1e5).toFixed(2) + 'L';
-    return Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+    return Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function modeColor(mode) {

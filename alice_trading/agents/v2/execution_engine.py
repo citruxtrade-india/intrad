@@ -33,10 +33,18 @@ class ExecutionEngine:
 
         # Route to correct execution path
         mode = state.execution_mode
+        
+        # Ensure router has correct broker instance
+        if mode in ["PAPER", "REAL"]:
+            from core.live_data_manager import LiveDataManager
+            ldm = LiveDataManager(user_id=state.user_id)
+            if getattr(ldm, 'adapter', None):
+                state.execution_router.broker = ldm.adapter.alice
+
         if mode == "PAPER":
-            return state.execution_router.route_order(symbol, side, qty, ltp, state_logger=state.add_log)
+            return state.execution_router.route_order(symbol, side, qty, ltp, mode=mode, state_logger=state.add_log)
         elif mode == "REAL":
-            return state.execution_router.route_order(symbol, side, qty, ltp, state_logger=state.add_log)
+            return state.execution_router.route_order(symbol, side, qty, ltp, mode=mode, state_logger=state.add_log)
         elif mode == "SIMULATION":
             return self.execute_simulation(symbol, ltp, signal, state, qty=qty)
         else:  # MOCK
