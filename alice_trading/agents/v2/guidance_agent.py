@@ -1,7 +1,6 @@
 import os
 import time
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 from .manager import AgentEvent
 
 class GuidanceAgent:
