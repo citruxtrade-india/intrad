@@ -169,7 +169,7 @@ def supervisor(alice):
 
                 ws = websocket.WebSocketApp("wss://ws1.aliceblueonline.com/NorenWS/",
                                              on_open=on_open, on_message=on_msg)
-                ws.run_forever()
+                ws.run_forever(ping_interval=20, ping_timeout=10)
             except:
                 time.sleep(5) # Delay before reconnect
 

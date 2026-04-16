@@ -78,12 +78,16 @@ class AliceBlueProfessionalEngine(Aliceblue):
                                          on_close=self.on_close,
                                          on_error=self.on_error)
 
+        def hardened_run():
+            # Hardened for AWS EC2 stability
+            self.ws.run_forever(ping_interval=20, ping_timeout=10)
+
         if run_in_background:
-            t = threading.Thread(target=self._Aliceblue__ws_run_forever)
+            t = threading.Thread(target=hardened_run)
             t.daemon = True
             t.start()
         else:
-            self._Aliceblue__ws_run_forever()
+            hardened_run()
 
 # ---------------- CORE LOGIC ---------------- #
 

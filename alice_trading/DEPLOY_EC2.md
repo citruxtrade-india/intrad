@@ -13,6 +13,25 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install python3-pip python3-venv -y
 ```
 
+## 2.1 Network & OS Hardening (CRITICAL for WebSocket)
+To prevent "silent disconnections" caused by AWS NAT Gateway timeouts (350s), apply these OS-level TCP keepalive settings:
+
+```bash
+# Tune TCP Keepalive (detect dead connections in 1m instead of 2h)
+sudo sysctl -w net.ipv4.tcp_keepalive_time=60
+sudo sysctl -w net.ipv4.tcp_keepalive_intvl=10
+sudo sysctl -w net.ipv4.tcp_keepalive_probes=6
+
+# Persist changes
+echo "net.ipv4.tcp_keepalive_time=60" | sudo tee -a /etc/sysctl.conf
+echo "net.ipv4.tcp_keepalive_intvl=10" | sudo tee -a /etc/sysctl.conf
+echo "net.ipv4.tcp_keepalive_probes=6" | sudo tee -a /etc/sysctl.conf
+sudo sysctl -p
+```
+
+*   **Elastic IP**: Always attach an **Elastic IP** to your instance. Public IPs from the AWS pool are more likely to be rate-limited by broker APIs.
+*   **NAT Gateway**: If your EC2 is in a private subnet, ensure your NAT Gateway idle timeout isn't being hit (though the code-level pings I've added will handle this).
+
 ## 3. Clone and Install
 ```bash
 git clone <your-repo-url>
