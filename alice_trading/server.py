@@ -1,4 +1,4 @@
-
+print("🚀 CI/CD DEPLOY SUCCESS")
 import os
 import asyncio
 import json
