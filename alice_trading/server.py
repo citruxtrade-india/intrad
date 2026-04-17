@@ -1,4 +1,8 @@
-print("🚀 CI/CD DEPLOY SUCCESS")
+import logging
+
+@app.on_event("startup")
+def startup_event():
+    logging.info("🚀 CI/CD DEPLOY SUCCESS")
 import os
 import asyncio
 import json
