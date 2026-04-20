@@ -180,52 +180,66 @@ def start_market_feed(alice, symbols_to_subscribe=None):
     #     # Non-fatal debug error
     #     pass
 
-    # Step 1: Start WebSocket with dynamic argument matching for library compatibility
+    # Step 1: Start WebSocket with highly aggressive argument matching for library compatibility
     try:
-        # Use inspection to find which arguments the current library version supports
         import inspect
-        argspec = inspect.getfullargspec(alice.start_websocket)
-        supported_args = argspec.args + (argspec.kwonlyargs or [])
+        sig = inspect.signature(alice.start_websocket)
+        params = sig.parameters
+        print(f"[DEBUG] start_websocket params: {list(params.keys())}")
         
-        ws_kwargs = {"run_in_background": True}
+        ws_kwargs = {}
+        
+        # Check for 'run_in_background' support
+        if "run_in_background" in params:
+            ws_kwargs["run_in_background"] = True
         
         # Match Open Callback
-        if "socket_open_callback" in supported_args:
+        if "socket_open_callback" in params:
             ws_kwargs["socket_open_callback"] = socket_open
-        elif "on_open" in supported_args:
+        elif "on_open" in params:
             ws_kwargs["on_open"] = socket_open
             
         # Match Close Callback
-        if "socket_close_callback" in supported_args:
+        if "socket_close_callback" in params:
             ws_kwargs["socket_close_callback"] = socket_close
-        elif "on_close" in supported_args:
+        elif "on_close" in params:
             ws_kwargs["on_close"] = socket_close
             
         # Match Error Callback
-        if "socket_error_callback" in supported_args:
+        if "socket_error_callback" in params:
             ws_kwargs["socket_error_callback"] = socket_error
-        elif "on_error" in supported_args:
+        elif "on_error" in params:
             ws_kwargs["on_error"] = socket_error
             
         # Match Data/Subscription Callback
-        if "subscription_callback" in supported_args:
+        if "subscription_callback" in params:
             ws_kwargs["subscription_callback"] = feed_data
-        elif "on_data" in supported_args:
+        elif "on_data" in params:
             ws_kwargs["on_data"] = feed_data
-        elif "subscribe_callback" in supported_args:
+        elif "subscribe_callback" in params:
             ws_kwargs["subscribe_callback"] = feed_data
+        elif "callback" in params:
+            ws_kwargs["callback"] = feed_data
             
-        # Execute the call with matched args
+        # Execute the call with matched keyword args
+        print(f"[DEBUG] Calling start_websocket with: {list(ws_kwargs.keys())}")
         alice.start_websocket(**ws_kwargs)
         
     except Exception as e:
-        # Fallback to no-args call if inspection failes or is restrictive
+        print(f"[DEBUG] Keyword attempt failed: {e}. Trying positional fallback...")
         try:
-            print(f"[DEBUG] Inspection failed or call failed ({e}). Trying simple start...")
-            alice.start_websocket(subscription_callback=feed_data, run_in_background=True)
+            # Positional Fallback (Legacy Signature: Open, Close, Error, Data, Background)
+            # We wrap in lambda to handle different numbers of arguments
+            alice.start_websocket(socket_open, socket_close, socket_error, feed_data, True)
+            print("[DEBUG] Positional fallback (5 args) succeeded.")
         except Exception as e2:
-            print(f"⚠️  Failed to start WebSocket after multiple attempts: {e2}")
-            return
+            try:
+                # Minimal Positional Fallback (Data only)
+                alice.start_websocket(feed_data)
+                print("[DEBUG] Minimal positional fallback succeeded.")
+            except Exception as e3:
+                print(f"⚠️  Fatal Error: Could not match any WebSocket signature. Error: {e3}")
+                return
     
     # Step 2: Wait for socket to stabilize
     time.sleep(2)
