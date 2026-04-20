@@ -183,6 +183,13 @@ def start_market_feed(alice, symbols_to_subscribe=None):
     # Step 1: Start WebSocket with highly aggressive argument matching for library compatibility
     try:
         import inspect
+        import websocket
+        
+        # Monkeypatch missing enableTrace to prevent library crashes (common in EC2 environments with pip conflicts)
+        if not hasattr(websocket, "enableTrace"):
+            print("[DEBUG] Patching missing websocket.enableTrace")
+            websocket.enableTrace = lambda x: None
+            
         sig = inspect.signature(alice.start_websocket)
         params = sig.parameters
         print(f"[DEBUG] start_websocket params: {list(params.keys())}")
@@ -218,6 +225,9 @@ def start_market_feed(alice, symbols_to_subscribe=None):
             ws_kwargs["on_data"] = feed_data
         elif "subscribe_callback" in params:
             ws_kwargs["subscribe_callback"] = feed_data
+        elif "script_subscription" in params:
+            # Special case for some SDK versions where this is the callback
+            ws_kwargs["script_subscription"] = feed_data
         elif "callback" in params:
             ws_kwargs["callback"] = feed_data
             
@@ -229,9 +239,8 @@ def start_market_feed(alice, symbols_to_subscribe=None):
         print(f"[DEBUG] Keyword attempt failed: {e}. Trying positional fallback...")
         try:
             # Positional Fallback (Legacy Signature: Open, Close, Error, Data, Background)
-            # We wrap in lambda to handle different numbers of arguments
             alice.start_websocket(socket_open, socket_close, socket_error, feed_data, True)
-            print("[DEBUG] Positional fallback (5 args) succeeded.")
+            print("[DEBUG] Positional fallback succeeded.")
         except Exception as e2:
             try:
                 # Minimal Positional Fallback (Data only)
