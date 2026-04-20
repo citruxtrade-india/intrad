@@ -41,32 +41,42 @@ class AliceBlueAdapter(BrokerDataAdapter):
         self.is_connected = False
 
     async def connect(self) -> bool:
-        import pyotp
+        from agents.auth_agent import AuthAgent
         # Ensure we don't have stale threads/connections
         await self.disconnect()
         
         try:
-            print(f"[ADAPTER] Authenticating user {self.user_id}...")
-            alice_client = Aliceblue(user_id=self.user_id, api_key=self.api_key)
-            self.alice = alice_client
+            print(f"[ADAPTER] Authenticating user {self.user_id} via AuthAgent...")
+            auth = AuthAgent()
+            # Ensure AuthAgent uses the current adapter's credentials if they differ 
+            # (though they should be from env usually)
+            auth.user_id = self.user_id
+            auth.api_key = self.api_key
+            auth.totp_secret = self.totp_secret
             
-            # Use pyotp to get current TOTP
-            otp = pyotp.TOTP(self.totp_secret).now()
-            print(f"[ADAPTER] Generated OTP: {otp}")
+            alice_client = auth.login()
             
-            session_res = alice_client.get_session_id(otp)
-            print(f"[ADAPTER] Session Result: {session_res}")
-            
-            if not session_res or not isinstance(session_res, dict) or not session_res.get("sessionID"):
-                print(f"[ADAPTER] Login failed or returned invalid response: {session_res}")
+            if not alice_client or not alice_client.session_id:
+                print(f"[ADAPTER] Login failed via AuthAgent.")
                 return False
             
-            # Set session ID explicitly if library doesn't
-            if getattr(alice_client, 'session_id', None) is None:
-                alice_client.session_id = session_res.get('sessionID')
-            
+            self.alice = alice_client
             print(f"[ADAPTER] Authentication successful. Session: {alice_client.session_id}")
-            
+            return await self._establish_websocket()
+
+        except Exception as e:
+            print(f"[ADAPTER] Connection error: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    async def _establish_websocket(self) -> bool:
+        """Helper to set up the manual WebSocket with the authenticated client."""
+        try:
+            alice_client = self.alice
+            if not alice_client or not alice_client.session_id:
+                return False
+
             # Manual WebSocket implementation to bypass broken pya3 version hardcoded to UAT
             import hashlib
             import websocket

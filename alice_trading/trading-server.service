@@ -1,0 +1,17 @@
+[Unit]
+Description=Antigravity Trading Server
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/intrad/alice_trading
+Environment="PATH=/home/ubuntu/intrad/alice_trading/venv/bin"
+ExecStart=/home/ubuntu/intrad/alice_trading/venv/bin/python main.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/ubuntu/intrad/alice_trading/app.log
+StandardError=append:/home/ubuntu/intrad/alice_trading/app.log
+
+[Install]
+WantedBy=multi-user.target

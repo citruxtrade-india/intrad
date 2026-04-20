@@ -1,6 +1,5 @@
 import logging
-
-
+from core.utils import logger, is_market_open, send_alert, BackoffTimer
 import os
 import asyncio
 import json
@@ -19,6 +18,12 @@ from pya3 import Aliceblue
 import secrets
 import smtplib
 from email.mime.text import MIMEText
+
+app = FastAPI(title="Antigravity Trading System")
+
+@app.get("/health")
+def health():
+    return {"status": "running", "timestamp": datetime.datetime.now().isoformat()}
 
 # --- CORE IMPORTS ---
 from core.live_data_manager import LiveDataManager

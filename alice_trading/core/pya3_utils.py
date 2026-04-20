@@ -1,7 +1,21 @@
+import requests
 import sys
 import logging
 import datetime
 import time
+
+# --- CLOUD INSTANCE 405 FIX ---
+# Alice Blue's WAF often blocks cloud IPs (EC2/Azure) if the User-Agent is generic.
+# We inject a browser-like User-Agent globally.
+real_request = requests.Session.request
+def patched_request(self, method, url, *args, **kwargs):
+    headers = kwargs.get('headers', {})
+    if 'User-Agent' not in headers:
+        headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    kwargs['headers'] = headers
+    return real_request(self, method, url, *args, **kwargs)
+requests.Session.request = patched_request
+# --- CLOUD INSTANCE 405 FIX END ---
 
 logger = logging.getLogger(__name__)
 

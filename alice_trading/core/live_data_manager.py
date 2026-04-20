@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Callable
 from .broker_adapter import AliceBlueAdapter, BrokerDataAdapter, BrokerFactory
+from .utils import logger, is_market_open, send_alert, BackoffTimer
 
 class LiveDataManager:
     """
@@ -44,6 +45,7 @@ class LiveDataManager:
         self._reconnect_task: Optional[asyncio.Task] = None
         self._watchdog_task: Optional[asyncio.Task] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._backoff = BackoffTimer()
         
         # Config (will be set from environment or user)
         self.credentials = {}
@@ -105,31 +107,46 @@ class LiveDataManager:
             # Use Factory to get adapter
             self.adapter = BrokerFactory.get_adapter(
                 broker_name=self.broker_name,
-                credentials=self.credentials,
-                callback=self._handle_raw_tick,
-                on_disconnect=self._on_adapter_disconnect
+            # Create Adapter
+            factory = BrokerFactory()
+            self.adapter = factory.get_adapter(
+                self.broker_name,
+                **self.credentials
             )
 
-        # Start Watchdog if NOT started
-        wt = self._watchdog_task
-        if not wt or wt.done():
-            self._watchdog_task = asyncio.create_task(self._watchdog_loop())
-
-
-        # Attempt Connection
-        connected = await self.adapter.connect()
-        
-        async with self.lock:
-            if connected:
-                self.status = "CONNECTED"
-                print("[LDM] Connection established.")
-                # Perform Subscriptions
-                await self.adapter.subscribe(self.subscriptions)
-            else:
+            # --- SMART LOGIN RETRIES ---
+            success = False
+            try:
+                success = await self.adapter.connect()
+                if success:
+                    logger.info(f"[LDM] Connected to {self.broker_name}")
+                    self.status = "CONNECTED"
+                    self._backoff.reset()
+                else:
+                    logger.warning(f"[LDM] Connection attempt failed.")
+                    self.status = "DISCONNECTED"
+            except Exception as e:
+                logger.error(f"[LDM] Login error: {e}")
                 self.status = "DISCONNECTED"
-                print("[LDM] Connection failed.")
-                # Start reconnection task in background
-                asyncio.create_task(self._reconnect_loop())
+                send_alert(f"Login failed for {self.user_id}: {str(e)}")
+
+            if not success:
+                # Trigger backoff retry in a separate task
+                if not self._reconnect_task or self._reconnect_task.done():
+                    self._reconnect_task = asyncio.create_task(self._scheduled_retry())
+                return False
+
+            # Subscribe to symbols
+            await self._subscribe_all()
+            return True
+
+    async def _scheduled_retry(self):
+        """Exponential backoff retry logic."""
+        delay = self._backoff.get_next_delay()
+        logger.info(f"[LDM] Scheduling retry in {delay}s...")
+        await asyncio.sleep(delay)
+        if self.status != "CONNECTED":
+             await self.start(self.subscriptions)
 
     async def stop(self):
         """Shutdown connection"""
@@ -305,10 +322,17 @@ class LiveDataManager:
 
     async def _reconnect_loop(self):
         """Exponential backoff reconnection with subscription restoration"""
-        delays = [1, 2, 5, 10, 30]
+        # User requested conservative retry intervals to prevent API block
+        delays = [60, 120, 300, 600]
         idx = 0
         
         while self.status == "DISCONNECTED":
+            # Guard: Only reconnect during market hours
+            if not is_market_open():
+                logger.info("[LDM] Market is closed. Pausing reconnection attempts until market opens.")
+                await asyncio.sleep(300) # Check every 5 mins
+                continue
+
             wait_time = delays[idx]
             print(f"[LDM] Reconnection attempt in {wait_time}s...")
             await asyncio.sleep(wait_time)
@@ -331,6 +355,8 @@ class LiveDataManager:
                     if connected:
                         self.status = "CONNECTED"
                         print("[LDM] Reconnected successfully. Restoring subscriptions...")
+                        # Reset backoff on success
+                        idx = 0
                         # Re-subscribe to ALL symbols in our list
                         if self.subscriptions:
                             await self.adapter.subscribe(self.subscriptions)

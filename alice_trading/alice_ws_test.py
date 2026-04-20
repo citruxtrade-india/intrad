@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 print("=" * 70)
-print("🧪 ALICE BLUE WEBSOCKET TEST")
+print("ALICE BLUE WEBSOCKET TEST")
 print("=" * 70)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -24,10 +24,10 @@ print("\n[1/4] Authenticating with Alice Blue...")
 
 user_id = os.getenv("ALICEBLUE_USER_ID")
 api_key = os.getenv("ALICEBLUE_API_KEY")
-totp_secret = os.getenv("ALICEBLUE_TOTP_SECRET")
+totp_secret = os.getenv("ALICEBLUE_TOTP_SECRET", "").replace(" ", "").strip()
 
 if not all([user_id, api_key, totp_secret]):
-    print("❌ Missing credentials in .env file")
+    print("[ERROR] Missing credentials in .env file")
     exit(1)
 
 try:
@@ -40,18 +40,18 @@ try:
     print(f"   Session response: {session_res}")
     
     if not isinstance(session_res, dict) or session_res.get("stat") != "Ok":
-        print(f"❌ Login failed! Error: {session_res.get('emsg') if isinstance(session_res, dict) else session_res}")
+        print(f"[ERROR] Login failed! Error: {session_res.get('emsg') if isinstance(session_res, dict) else session_res}")
         exit(1)
         
     session_id = session_res.get("sessionID")
     if not session_id:
-        print("❌ Login failed - No sessionID in response")
+        print("[ERROR] Login failed - No sessionID in response")
         exit(1)
     
-    print(f"✅ Login successful. Session ID: {session_id[:5]}...")
+    print(f"[SUCCESS] Login successful. Session ID: {session_id[:5]}...")
     
 except Exception as e:
-    print(f"❌ Authentication error: {e}")
+    print(f"[ERROR] Authentication error: {e}")
     import traceback
     traceback.print_exc()
     exit(1)
@@ -77,7 +77,7 @@ def socket_open():
     """Called when WebSocket connects"""
     global is_connected
     is_connected = True
-    print("✅ WebSocket Connected")
+    print("[SUCCESS] WebSocket Connected")
     
     # Subscribe to multiple instruments
     instruments = [
@@ -100,17 +100,17 @@ def socket_open():
     else:
         alice.subscribe(valid_instruments)
         
-    print(f"📊 Subscribed to: {[i.symbol for i in valid_instruments]}")
+    print(f"[MARKET] Subscribed to: {[i.symbol for i in valid_instruments]}")
 
 def socket_close():
     """Called when WebSocket closes"""
     global is_connected
     is_connected = False
-    print("❌ WebSocket Closed")
+    print("[CLOSED] WebSocket Closed")
 
 def socket_error(message):
     """Called on WebSocket error"""
-    print(f"⚠️  WebSocket Error: {message}")
+    print(f"[WARNING] WebSocket Error: {message}")
 
 def feed_data(message):
     """Called for each live tick"""
@@ -123,9 +123,9 @@ def feed_data(message):
     volume = message.get("v", 0)
     
     if tick_count % 10 == 0:  # Log every 10th tick
-        print(f"📈 TICK #{tick_count}: {symbol:<12} @ {price:>10.2f} (Vol: {volume})")
+        print(f"[TICK #{tick_count}]: {symbol:<12} @ {price:>10.2f} (Vol: {volume})")
 
-print("✅ Callbacks ready")
+print("[OK] Callbacks ready")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # STEP 3: START WEBSOCKET
@@ -141,10 +141,10 @@ try:
         subscription_callback=feed_data,
         run_in_background=True
     )
-    print("✅ WebSocket started in background")
+    print("[OK] WebSocket started in background")
     
 except Exception as e:
-    print(f"❌ WebSocket start error: {e}")
+    print(f"[ERROR] WebSocket start error: {e}")
     exit(1)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -152,7 +152,7 @@ except Exception as e:
 # ─────────────────────────────────────────────────────────────────────────────
 
 print("\n[4/4] Waiting for live data (60 seconds)...")
-print("─" * 70)
+print("-" * 70)
 
 start_time = time.time()
 prev_tick_count = 0
@@ -162,7 +162,7 @@ while time.time() - start_time < 60:
     
     # Print status every 10 seconds
     if elapsed % 10 == 0 and elapsed > 0:
-        status = "🔌 CONNECTED" if is_connected else "❌ DISCONNECTED"
+        status = "CONNECTED" if is_connected else "DISCONNECTED"
         ticks_per_sec = (tick_count - prev_tick_count) / 10 if prev_tick_count > 0 else 0
         print(f"{status} | Ticks: {tick_count} | Rate: {ticks_per_sec:.1f}/sec")
         prev_tick_count = tick_count
@@ -173,17 +173,17 @@ while time.time() - start_time < 60:
 # SUMMARY
 # ─────────────────────────────────────────────────────────────────────────────
 
-print("\n" + "─" * 70)
-print("📊 TEST SUMMARY")
-print("─" * 70)
+print("\n" + "-" * 70)
+print("TEST SUMMARY")
+print("-" * 70)
 
 if tick_count > 0:
-    print(f"✅ TEST PASSED")
+    print(f"[PASSED] TEST SUCCESSFUL")
     print(f"   Total ticks received: {tick_count}")
     print(f"   Average rate: {tick_count/60:.1f} ticks/second")
     print(f"   WebSocket: {'CONNECTED' if is_connected else 'DISCONNECTED'}")
 else:
-    print(f"⚠️  No ticks received")
+    print(f"[FAILED] No ticks received")
     print(f"   This could mean:")
     print(f"   1. Market is closed (9:15 AM - 3:30 PM IST only)")
     print(f"   2. WebSocket connection failed")
