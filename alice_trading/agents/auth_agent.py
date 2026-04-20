@@ -26,6 +26,9 @@ class AuthAgent:
                 today = datetime.datetime.now().strftime("%Y-%m-%d")
                 
                 if cached_date == today and cached.get("sessionID"):
+                    if not self.user_id or not self.api_key:
+                        logger.error("Missing broker credentials in .env file (for session reuse).")
+                        return None
                     logger.info("Reusing existing session from cache.")
                     alice = Aliceblue(user_id=self.user_id, api_key=self.api_key)
                     alice.session_id = cached.get("sessionID")

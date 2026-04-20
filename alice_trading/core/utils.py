@@ -5,6 +5,10 @@ import smtplib
 import requests
 from email.mime.text import MIMEText
 from typing import Optional
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Setup Logging
 logging.basicConfig(
