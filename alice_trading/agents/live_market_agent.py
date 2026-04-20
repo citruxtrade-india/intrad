@@ -180,26 +180,51 @@ def start_market_feed(alice, symbols_to_subscribe=None):
     #     # Non-fatal debug error
     #     pass
 
-    # Step 1: Start WebSocket with callbacks (try multiple common parameter sets for compatibility)
+    # Step 1: Start WebSocket with dynamic argument matching for library compatibility
     try:
-        alice.start_websocket(
-            socket_open_callback=socket_open,
-            socket_close_callback=socket_close,
-            socket_error_callback=socket_error,
-            subscription_callback=feed_data,
-            run_in_background=True
-        )
-    except TypeError:
+        # Use inspection to find which arguments the current library version supports
+        import inspect
+        argspec = inspect.getfullargspec(alice.start_websocket)
+        supported_args = argspec.args + (argspec.kwonlyargs or [])
+        
+        ws_kwargs = {"run_in_background": True}
+        
+        # Match Open Callback
+        if "socket_open_callback" in supported_args:
+            ws_kwargs["socket_open_callback"] = socket_open
+        elif "on_open" in supported_args:
+            ws_kwargs["on_open"] = socket_open
+            
+        # Match Close Callback
+        if "socket_close_callback" in supported_args:
+            ws_kwargs["socket_close_callback"] = socket_close
+        elif "on_close" in supported_args:
+            ws_kwargs["on_close"] = socket_close
+            
+        # Match Error Callback
+        if "socket_error_callback" in supported_args:
+            ws_kwargs["socket_error_callback"] = socket_error
+        elif "on_error" in supported_args:
+            ws_kwargs["on_error"] = socket_error
+            
+        # Match Data/Subscription Callback
+        if "subscription_callback" in supported_args:
+            ws_kwargs["subscription_callback"] = feed_data
+        elif "on_data" in supported_args:
+            ws_kwargs["on_data"] = feed_data
+        elif "subscribe_callback" in supported_args:
+            ws_kwargs["subscribe_callback"] = feed_data
+            
+        # Execute the call with matched args
+        alice.start_websocket(**ws_kwargs)
+        
+    except Exception as e:
+        # Fallback to no-args call if inspection failes or is restrictive
         try:
-            alice.start_websocket(
-                on_open=socket_open,
-                on_close=socket_close,
-                on_error=socket_error,
-                on_data=feed_data,
-                run_in_background=True
-            )
-        except Exception as e:
-            print(f"⚠️  Failed to start WebSocket: {e}")
+            print(f"[DEBUG] Inspection failed or call failed ({e}). Trying simple start...")
+            alice.start_websocket(subscription_callback=feed_data, run_in_background=True)
+        except Exception as e2:
+            print(f"⚠️  Failed to start WebSocket after multiple attempts: {e2}")
             return
     
     # Step 2: Wait for socket to stabilize
