@@ -184,6 +184,7 @@ def start_market_feed(alice, symbols_to_subscribe=None):
     try:
         import inspect
         import websocket
+        print(f"[DEBUG] websocket library path: {getattr(websocket, '__file__', 'unknown')}")
         
         # Monkeypatch missing enableTrace to prevent library crashes (common in EC2 environments with pip conflicts)
         if not hasattr(websocket, "enableTrace"):
