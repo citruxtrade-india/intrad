@@ -53,19 +53,13 @@ def main():
         print("Exiting due to login failure.")
         return
 
-    # Start live feed in background thread
-    live_thread = threading.Thread(target=start_live_feed, args=(alice,))
-    live_thread.daemon = True
-    live_thread.start()
-
     # Start analysis in background thread
     analysis_thread = threading.Thread(target=anti_gravity_loop)
     analysis_thread.daemon = True
     analysis_thread.start()
 
-    # Keep main thread alive
+    # START LIVE FEED IN MAIN THREAD (Required by some SDK versions for signal handling)
     try:
-        while True:
-            time.sleep(1)
+        start_live_feed(alice)
     except KeyboardInterrupt:
         print("\nShutting down...") 
