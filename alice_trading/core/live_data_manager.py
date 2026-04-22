@@ -135,9 +135,15 @@ class LiveDataManager:
                     self._reconnect_task = asyncio.create_task(self._scheduled_retry())
                 return False
 
-            # Subscribe to symbols
             await self._subscribe_all()
             return True
+
+    async def _subscribe_all(self):
+        """Helper to subscribe to all current symbols through the adapter"""
+        if self.adapter and self.status == "CONNECTED":
+            if self.subscriptions:
+                print(f"[LDM] Subscribing to {len(self.subscriptions)} symbols...")
+                await self.adapter.subscribe(self.subscriptions)
 
     async def _scheduled_retry(self):
         """Exponential backoff retry logic."""
