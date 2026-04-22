@@ -92,17 +92,25 @@ class AliceBlueAdapter(BrokerDataAdapter):
             print(f"[ADAPTER] Connecting to Production WebSocket: {ws_url}")
             
             def run_websocket():
-                self.ws_app = websocket.WebSocketApp(
-                    ws_url,
-                    on_open=self._on_ws_open,
-                    on_message=self._on_ws_message,
-                    on_error=self._on_ws_error,
-                    on_close=self._on_ws_close
-                )
-                # Hardened for AWS EC2: 
-                # ping_interval=20 sends a ping every 20s to stay under AWS NAT 350s timeout.
-                # ping_timeout=10 closes the socket if no pong is received in 10s.
-                self.ws_app.run_forever(ping_interval=20, ping_timeout=10)
+                try:
+                    if not hasattr(websocket, 'WebSocketApp'):
+                        print("🛑 ERROR: 'websocket-client' is shadowed by another 'websocket' package.")
+                        print("   FIX: Run 'pip uninstall websocket websocket-client -y && pip install websocket-client'")
+                        self.is_connected = False
+                        return
+
+                    self.ws_app = websocket.WebSocketApp(
+                        ws_url,
+                        on_open=self._on_ws_open,
+                        on_message=self._on_ws_message,
+                        on_error=self._on_ws_error,
+                        on_close=self._on_ws_close
+                    )
+                    # Hardened for AWS EC2
+                    self.ws_app.run_forever(ping_interval=20, ping_timeout=10)
+                except Exception as e:
+                    print(f"[ADAPTER] WebSocket run error: {e}")
+                    self.is_connected = False
 
             self.ws_thread = threading.Thread(target=run_websocket, daemon=True)
             self.ws_thread.start()

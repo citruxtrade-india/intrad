@@ -1,6 +1,6 @@
 fastapi==0.104.1
 uvicorn==0.24.0.post1
-pya3==1.0.8
+# pya3==1.0.8  <-- Install manually with: pip install pya3==1.0.8 --no-deps
 python-dotenv==1.0.0
 pyotp==2.9.0
 websocket-client==1.6.4
