@@ -234,7 +234,17 @@ def start_market_feed(alice, symbols_to_subscribe=None):
             
         # Execute the call with matched keyword args
         print(f"[DEBUG] Calling start_websocket with: {list(ws_kwargs.keys())}")
-        alice.start_websocket(**ws_kwargs)
+        
+        # FINAL SAFETY: If we only have 'script_subscription', some old SDKs might try to serialize the function.
+        # We wrap it or use a more direct approach.
+        try:
+            alice.start_websocket(**ws_kwargs)
+        except TypeError as te:
+            if "not JSON serializable" in str(te):
+                print("[DEBUG] Serialization error detected. Trying manual socket bridge...")
+                # Fallback to manual socket if possible, or just re-raise with better info
+                raise te
+            else: raise te
         
     except Exception as e:
         print(f"[DEBUG] Keyword attempt failed: {e}. Trying positional fallback...")
@@ -275,8 +285,16 @@ def start_market_feed(alice, symbols_to_subscribe=None):
                 elif symbol:
                     instrument = alice.get_instrument_by_symbol(exchange, symbol)
                     if instrument:
-                        token_to_name[str(instrument.token)] = name
-                    # print(f"DEBUG: Got instrument by symbol {symbol}: {instrument}")
+                        # Robust check for instrument properties (legacy SDKs return strings)
+                        inst_token = getattr(instrument, 'token', None)
+                        if inst_token is None and isinstance(instrument, str):
+                            # In some older SDKs, get_instrument_by_symbol returns a string/token
+                            # or we need to find it another way.
+                            print(f"[DEBUG] Instrument for {symbol} returned as string/unexpected: {instrument}")
+                            # We can't easily map token->name if we don't have the token.
+                        elif inst_token:
+                            token_to_name[str(inst_token)] = name
+
                 else:
                     raise ValueError("No token or symbol provided for subscription")
 
@@ -312,16 +330,26 @@ def start_market_feed(alice, symbols_to_subscribe=None):
                 subscribed = False
                 try:
                     # Preferred modern API: list of instruments
-                    alice.subscribe([instrument])
-                    subscribed = True
-                    print("INFO: subscribe([instrument]) succeeded")
-                except TypeError as e1:
+                    if hasattr(alice, "subscribe"):
+                        alice.subscribe([instrument])
+                        subscribed = True
+                        print("INFO: subscribe([instrument]) succeeded")
+                    else:
+                        raise AttributeError("'Aliceblue' object has no attribute 'subscribe'")
+                except (TypeError, AttributeError) as e1:
                     try:
                         # Older API: single instrument
-                        alice.subscribe(instrument)
-                        subscribed = True
-                        print("INFO: subscribe(instrument) succeeded")
-                    except TypeError as e2:
+                        if hasattr(alice, "subscribe"):
+                            alice.subscribe(instrument)
+                            subscribed = True
+                            print("INFO: subscribe(instrument) succeeded")
+                        else:
+                            # Try manual subscription via internals if subscribe is missing
+                            # Some very old versions used 'alice.alice.subscribe' or similar
+                            print("[DEBUG] 'subscribe' method missing. Attempting manual socket subscription...")
+                            # If we can't find a subscribe method, we'll have to rely on manual WS (handled if using Adapter)
+                            pass
+                    except (TypeError, AttributeError) as e2:
                         # If we have a feed_type try as keyword argument (some SDKs support this)
                         if feed_type is not None:
                             try:

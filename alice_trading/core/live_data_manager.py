@@ -244,6 +244,7 @@ class LiveDataManager:
         lp = message.get("lp")
         tick_data = {
             "ltp": float(lp) if lp is not None and str(lp) != "0" else None,
+            "price": float(lp) if lp is not None and str(lp) != "0" else None, # Compatibility with Anti-Gravity Agent
             "bid": float(message.get("bp1")) if message.get("bp1") else None,
             "ask": float(message.get("sp1")) if message.get("sp1") else None,
             "volume": float(message.get("v", 0)),

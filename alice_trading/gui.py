@@ -1,10 +1,11 @@
-from agents.auth_agent import AuthAgent
-from agents.live_market_agent import start_market_feed, data_bus
+from core.live_data_manager import LiveDataManager
+from shared.data_bus import DataBus
 from agents.anti_gravity_agent import AntiGravityAgent
-import time
 import threading
+import time
 
 def login():
+    from agents.auth_agent import AuthAgent
     alice = AuthAgent().login()
     if alice:
         print("[OK] Login Successful")
@@ -13,27 +14,45 @@ def login():
     return alice
 
 def start_live_feed(alice):
-    """Start WebSocket and subscribe to live market data"""
-    if not alice:
-        print("[ERR] Live feed aborted: session is None.")
-        return
+    """Start WebSocket via LiveDataManager for maximum stability"""
+    if not alice: return
 
-    # Define symbols to subscribe to
-    symbols_to_subscribe = [
+    # Define symbols
+    symbols = [
         {"exchange": "NSE", "token": 26000, "name": "NIFTY50"},
         {"exchange": "NSE", "token": 26009, "name": "NIFTY BANK"},
         {"exchange": "BSE", "token": 30, "name": "SENSEX"},
-        {"exchange": "NSE", "symbol": "RELIANCE", "name": "RELIANCE"}
+        {"exchange": "NSE", "token": 1394, "name": "HINDUNILVR"},
+        {"exchange": "NSE", "token": 1333, "name": "HDFCBANK"},
+        {"exchange": "NSE", "token": 1594, "name": "INFY"},
+        {"exchange": "NSE", "token": 1348, "name": "HEROMOTOCO"},
+        {"exchange": "NSE", "symbol": "RELIANCE", "token": 2885, "name": "RELIANCE"}
     ]
-    start_market_feed(alice, symbols_to_subscribe)
 
-    # Heartbeat: print status every 5 seconds
-    print("[...] Waiting for live market ticks...")
-    while True:
-        # current_data = data_bus.get_all_data()
-        # tick_count = len(current_data)
-        time.sleep(5) 
+    ldm = LiveDataManager(user_id="admin")
+    
+    # Credentials from .env are handled by LiveDataManager internally if we set them
+    import os
+    ldm.set_credentials(
+        os.getenv("ALICEBLUE_USER_ID"),
+        os.getenv("ALICEBLUE_API_KEY"),
+        os.getenv("ALICEBLUE_TOTP_SECRET")
+    )
 
+    print("[START] Starting LiveDataManager (Multi-Tenant Engine)...")
+    
+    # We run the async start in the current thread's event loop
+    import asyncio
+    async def run_ldm():
+        await ldm.start(symbols)
+        print("[...] Waiting for live market ticks...")
+        while True:
+            await asyncio.sleep(5)
+
+    try:
+        asyncio.run(run_ldm())
+    except KeyboardInterrupt:
+        pass
 def anti_gravity_loop():
     """Run Anti-Gravity analysis in a loop"""
     agent = AntiGravityAgent()
