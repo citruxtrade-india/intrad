@@ -223,13 +223,23 @@ class AliceBlueAdapter(BrokerDataAdapter):
                 token = sym.get("token")
                 name = sym.get("name", str(token))
                 
-                instrument = alice_client.get_instrument_by_token(exchange, token)
+                try:
+                    instrument = alice_client.get_instrument_by_token(exchange, token)
+                except Exception as ex:
+                    print(f"[ADAPTER] Resolution exception for {name}: {ex}")
+                    instrument = None
 
-                if instrument:
-                    instruments.append(instrument)
-                    print(f"[ADAPTER] Resolved instrument for {name} ({exchange}:{token}): {instrument}")
-                else:
-                    print(f"[ADAPTER] WARNING: Could not resolve instrument for {name} ({exchange}:{token})")
+                # Fallback: Create a 'Pseudo-Instrument' if resolution failed (e.g. 405)
+                # but we have the exchange and token to proceed with WebSocket.
+                if not instrument or (isinstance(instrument, dict) and instrument.get('stat') == 'Not_ok'):
+                    print(f"[ADAPTER] Resolution failed for {name} ({exchange}:{token}). Using virtual instrument fallback.")
+                    # Create a mock instrument object with necessary attributes
+                    from collections import namedtuple
+                    PseudoInstrument = namedtuple('Instrument', ['exchange', 'token', 'symbol'])
+                    instrument = PseudoInstrument(exchange=exchange, token=token, symbol=name)
+
+                instruments.append(instrument)
+                print(f"[ADAPTER] Ready for {name} ({exchange}:{token})")
             except Exception as e:
                 print(f"[ADAPTER] Instrument resolution error for {sym}: {e}")
         

@@ -67,36 +67,39 @@ class BackoffTimer:
 
 def patch_http_headers():
     """
-    Monkeypatch requests to include a browser-like User-Agent.
-    This fixes 405 Method Not Allowed errors on Alice Blue API.
+    Deep monkeypatch requests to include a browser-like User-Agent and correct headers.
+    This fixes 405 Method Not Allowed errors on Alice Blue API by targeting the Session class.
     """
-    original_post = requests.post
-    original_get = requests.get
+    from requests import Session
+    original_request = Session.request
 
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
         "Accept-Language": "en-US,en;q=0.9",
-        "Content-Type": "application/json"
+        "Origin": "https://antigravity.google",
+        "Referer": "https://antigravity.google/"
     }
 
-    def patched_post(url, *args, **kwargs):
-        if 'headers' not in kwargs:
+    def patched_request(self, method, url, *args, **kwargs):
+        # Initialize headers if not present
+        if 'headers' not in kwargs or kwargs['headers'] is None:
             kwargs['headers'] = headers.copy()
         else:
-            kwargs['headers'].update(headers)
-        return original_post(url, *args, **kwargs)
+            # Update headers but don't overwrite if specified
+            for k, v in headers.items():
+                if k not in kwargs['headers']:
+                    kwargs['headers'][k] = v
+        
+        # Ensure Content-Type is set for POST/PUT if not specified
+        if method.upper() in ["POST", "PUT"]:
+            if "Content-Type" not in kwargs['headers']:
+                kwargs['headers']["Content-Type"] = "application/json"
 
-    def patched_get(url, *args, **kwargs):
-        if 'headers' not in kwargs:
-            kwargs['headers'] = headers.copy()
-        else:
-            kwargs['headers'].update(headers)
-        return original_get(url, *args, **kwargs)
+        return original_request(self, method, url, *args, **kwargs)
 
-    requests.post = patched_post
-    requests.get = patched_get
-    logger.info("HTTP Headers patched for Alice Blue compatibility.")
+    Session.request = patched_request
+    logger.info("Deep HTTP Headers patched for Alice Blue compatibility.")
 
 # Auto-apply patch on import
 patch_http_headers()
