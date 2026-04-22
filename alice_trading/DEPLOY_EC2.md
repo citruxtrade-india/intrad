@@ -4,13 +4,19 @@ Follow these steps to deploy the platform on an AWS EC2 instance (Ubuntu/Linux).
 
 ## 1. Instance Setup
 * **Instance Type**: t3.medium or higher (recommended for agent processing).
-* **Security Group**: Open **TCP Port 8001** (Inbound) for your IP or '0.0.0.0/0' (publicly accessible).
+* **Security Group**: Open **TCP Port 8002** (Inbound) for your IP or '0.0.0.0/0' (publicly accessible).
 
 ## 2. Server Preparation
 Connect via SSH and run:
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install python3-pip python3-venv -y
+
+# Fix WebSocket conflict (VERY IMPORTANT)
+# EC2 environments often have 'websocket' which conflicts with 'websocket-client'
+pip uninstall websocket websocket-client -y
+pip install websocket-client
+
 ```
 
 ## 2.1 Network & OS Hardening (CRITICAL for WebSocket)
@@ -62,4 +68,4 @@ pm2 startup
 ```
 
 ## 6. Access
-Open your browser and navigate to: `http://<EC2-PUBLIC-IP>:8001`
+Open your browser and navigate to: `http://<EC2-PUBLIC-IP>:8002`

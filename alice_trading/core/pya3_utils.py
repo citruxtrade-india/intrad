@@ -62,4 +62,18 @@ except ImportError:
             LiveFeedType = DummyLiveFeedType
             logger.warning("Could not import LiveFeedType. Using DummyLiveFeedType stub.")
 
+# WebSocket library conflict detector
+try:
+    import websocket
+    if not hasattr(websocket, 'WebSocketApp'):
+        logger.error("🛑 CRITICAL: 'websocket' module found but 'WebSocketApp' is missing.")
+        logger.error("   This usually means the wrong 'websocket' package is installed instead of 'websocket-client'.")
+        logger.error("   FIX: Run 'pip uninstall websocket websocket-client -y && pip install websocket-client'")
+    else:
+        # Patch enableTrace if missing (common in some envs)
+        if not hasattr(websocket, "enableTrace"):
+            websocket.enableTrace = lambda x: None
+except ImportError:
+    logger.error("🛑 WebSocket library not found. Run 'pip install websocket-client'")
+
 __all__ = ["Aliceblue", "Instrument", "LiveFeedType"]

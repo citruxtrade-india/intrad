@@ -105,13 +105,12 @@ class LiveDataManager:
                     self.token_to_symbol[str(s["token"])] = s["name"]
             
             # Use Factory to get adapter
-            self.adapter = BrokerFactory.get_adapter(
-                broker_name=self.broker_name,
-            # Create Adapter
             factory = BrokerFactory()
             self.adapter = factory.get_adapter(
-                self.broker_name,
-                **self.credentials
+                broker_name=self.broker_name,
+                credentials=self.credentials,
+                callback=self._handle_raw_tick,
+                on_disconnect=self._on_adapter_disconnect
             )
 
             # --- SMART LOGIN RETRIES ---
