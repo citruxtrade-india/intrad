@@ -22,13 +22,16 @@ logging.basicConfig(
 logger = logging.getLogger("Antigravity")
 
 def is_market_open() -> bool:
-    """Checks if the Indian stock market is currently open (9:15 AM - 3:30 PM)."""
-    now = datetime.datetime.now()
+    """Checks if the Indian stock market is currently open (9:15 AM - 3:30 PM IST)."""
+    # Force IST (UTC + 5:30)
+    utc_now = datetime.datetime.utcnow()
+    ist_now = utc_now + datetime.timedelta(hours=5, minutes=30)
+    
     # Check if it's a weekday (0=Monday, 6=Sunday)
-    if now.weekday() >= 5:
+    if ist_now.weekday() >= 5:
         return False
         
-    current_time = now.time()
+    current_time = ist_now.time()
     market_start = datetime.time(9, 15)
     market_end = datetime.time(15, 30)
     
@@ -76,9 +79,7 @@ def patch_http_headers():
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Origin": "https://antigravity.google",
-        "Referer": "https://antigravity.google/"
+        "Accept-Language": "en-US,en;q=0.9"
     }
 
     def patched_request(self, method, url, *args, **kwargs):
