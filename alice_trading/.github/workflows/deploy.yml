@@ -1,0 +1,28 @@
+name: Auto Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main  # Adjust this if your branch is named differently
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/intrad/alice_trading
+            git stash
+            git pull origin main
+            git stash pop || true
+            pip3 install -r requirements.txt --quiet
+            sudo systemctl restart trading-server
+            sudo systemctl status trading-server
