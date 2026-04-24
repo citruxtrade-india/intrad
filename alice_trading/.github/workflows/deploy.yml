@@ -19,11 +19,17 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "Starting deployment to live server..."
+            echo "--- DEBUG INFO ---"
+            pwd
+            ls -la static/index.html
+            grep -o "Algo Ai" static/index.html || echo "NOT FOUND"
+            echo "------------------"
             cd /home/ubuntu/alice_trading
             git fetch origin main
             git reset --hard origin/main
+            echo "--- POST-PULL CHECK ---"
+            grep -o "Algo Ai" static/index.html
+            echo "-----------------------"
             pip3 install -r requirements.txt --quiet
-            echo "Restarting service..."
             sudo systemctl restart trading-server
             sudo systemctl status trading-server --no-pager
