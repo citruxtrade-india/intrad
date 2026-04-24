@@ -174,6 +174,179 @@ def is_market_open(segment, state: GlobalExchangeState):
     current_time_str = now.strftime("%H:%M")
     return cfg["open"] <= current_time_str <= cfg["close"]
 
+async def start_data_engine(user_id="admin"):
+    """WebSocket engine to receive live market ticks via LiveDataManager"""
+    state = session_mgr.get_state(user_id)
+    # Strict rule: Live data only for PAPER or REAL modes
+    if state.execution_mode not in ["PAPER", "REAL"]:
+        state.add_log(f"Data engine skipped: Current mode {state.execution_mode} uses internal feed.")
+        return
+
+    ldm = LiveDataManager(user_id=user_id, broker_name=state.broker_name)
+    if ldm.status in ["CONNECTED", "CONNECTING"]:
+        state.add_log("Data engine already active.")
+        return
+    
+    state.data_engine_status = "CONNECTING"
+    symbols_mgr = {
+        "NIFTY": {"exch": "NSE", "token": 26000, "segment": "NSE", "broker_symbol": "NIFTY 50"},
+        "BANKNIFTY": {"exch": "NSE", "token": 26009, "segment": "NSE", "broker_symbol": "NIFTY BANK"},
+        "SENSEX": {"exch": "BSE", "token": 1, "segment": "BSE", "broker_symbol": "SENSEX"},
+        "GOLD": {"exch": "MCX", "token": 454818, "segment": "MCX", "broker_symbol": "GOLD"},
+        "SILVER": {"exch": "MCX", "token": 451666, "segment": "MCX", "broker_symbol": "SILVER"},
+        "CRUDEOIL": {"exch": "MCX", "token": 472789, "segment": "MCX", "broker_symbol": "CRUDEOIL"},
+        "NATGASMINI": {"exch": "MCX", "token": 475112, "segment": "MCX", "broker_symbol": "NATGASMINI"},
+        "HINDUNILVR": {"exch": "NSE", "token": 1394, "segment": "NSE", "broker_symbol": "HINDUNILVR"},
+        "HDFCBANK": {"exch": "NSE", "token": 1333, "segment": "NSE", "broker_symbol": "HDFCBANK"}
+    }
+    
+    token_map = {str(cfg['token']): name for name, cfg in symbols_mgr.items()}
+    
+    try:
+        # Use per-user credentials if set (managed users), else fall back to global .env (admin)
+        creds = state.broker_credentials
+        effective_user_id  = creds.get("user_id")  or USER_ID
+        effective_api_key  = creds.get("api_key")  or API_KEY
+        effective_totp     = creds.get("totp_secret") or TOTP_SECRET
+
+        if not effective_api_key or not effective_user_id or not effective_totp:
+            raise Exception("Broker credentials missing. Set in .env (admin) or add via Admin Console (managed users).")
+
+        ldm.set_credentials(effective_user_id, effective_api_key, effective_totp)
+
+        # Prepare symbol list for the manager
+        sub_list = []
+        for name, cfg in symbols_mgr.items():
+            if name in state.monitored_instruments:
+                sub_list.append({
+                    "exchange": cfg['exch'],
+                    "token": cfg['token'],
+                    "name": name
+                })
+                # Initialize state entry if missing
+                with state.lock:
+                    if name not in state.market_data:
+                        state.market_data[name] = {"ltp": None, "close": None, "volume": None, "status": "WAITING", "timestamp": 0, "segment": cfg['segment']}
+                    else:
+                        state.market_data[name]["segment"] = cfg['segment']
+
+        # Define bridge callback
+        def server_tick_handler(msg):
+            if msg is None: return
+            token = msg.get('tk')
+            # Use injected 'ts' from LDM or fallback to hardest mapping
+            name = msg.get('ts') or token_map.get(str(token))
+            
+            if name:
+                try:
+                    lp = msg.get('lp')
+                    ltp = float(lp) if lp is not None and str(lp) != "0" else None
+                    if ltp is None: return
+
+                    # Handle close price logic: 'pc' is Previous Close in Alice Blue v2, 'c' is fallback
+                    c_val = msg.get('pc') or msg.get('c')
+                    close = float(c_val) if c_val is not None and str(c_val) != "0" else ltp
+                    volume = float(msg.get('v', 0))
+                    
+                    with state.lock:
+                        if name not in state.market_data:
+                            state.market_data[name] = {"ltp": None, "close": None, "volume": None, "status": "WAITING", "timestamp": 0}
+                            
+                        state.market_data[name].update({
+                            "ltp": ltp,
+                            "volume": volume,
+                            "close": close,
+                            "timestamp": time.time(),
+                            "status": "LIVE"
+                        })
+                        state.data_engine_status = "CONNECTED"
+                    
+                    if state.is_running:
+                        threading.Thread(target=run_agent_pipeline, args=(name, ltp, close)).start()
+                except Exception as e:
+                    state.add_log(f"Tick Error ({name}): {e}")
+
+        # Register callback and start feed
+        ldm.register_callback(server_tick_handler)
+        state.add_log("Starting LiveDataManager...")
+        await ldm.start(sub_list)
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        state.add_log(f"Live Feed Broker connection failed: {str(e)}")
+        state.data_engine_status = "DISCONNECTED"
+
+        if state.execution_mode in ["PAPER", "REAL"]:
+            state.add_log(">>> INITIATING VIRTUAL FEED (STABILITY FALLBACK) <<<")
+            start_simulation_feed(symbols_mgr, user_id=user_id)
+
+    # --- START COMMODITY LIVE DATA (Non-intrusive, read-only) ---
+    await start_commodity_data_engine(user_id=user_id)
+
+async def stop_data_engine(user_id="admin"):
+    """Safely shut down the LiveDataManager"""
+    state = session_mgr.get_state(user_id)
+    try:
+        ldm = LiveDataManager(user_id=user_id, broker_name=state.broker_name)
+        state.add_log("Stopping LiveDataManager...")
+        await ldm.stop()
+        state.data_engine_status = "DISCONNECTED"
+    except Exception as e:
+        state.add_log(f"Error stopping data engine: {e}")
+    # Also stop commodity data
+    await stop_commodity_data_engine(user_id=user_id)
+
+async def daily_maintenance_loop():
+    """Background task to handle daily resets and auto-reconnections"""
+    logger.info("Daily Maintenance Loop started.")
+    last_reset_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    
+    while True:
+        try:
+            await asyncio.sleep(60) # Check every minute
+            now = datetime.datetime.now()
+            today = now.strftime("%Y-%m-%d")
+            current_time = now.strftime("%H:%M")
+            
+            # 1. DAILY RESET: Force re-login at 9:00 AM
+            if today != last_reset_date or current_time == "09:00":
+                logger.info(f"Performing daily system reset for {today}")
+                last_reset_date = today
+                
+                # Force clear session cache for all users
+                for user_id in list(session_mgr.sessions.keys()):
+                    state = session_mgr.get_state(user_id)
+                    state.add_log(f"Scheduled Daily Refresh: Re-authenticating broker session...")
+                    
+                    # Stop engine, delete session file, restart engine
+                    await stop_data_engine(user_id)
+                    session_file = "session.json"
+                    if os.path.exists(session_file):
+                        try: os.remove(session_file)
+                        except: pass
+                    
+                    await asyncio.sleep(2)
+                    asyncio.create_task(start_data_engine(user_id))
+            
+            # 2. AUTO-RECONNECT: If market is open and engine is dead
+            for user_id, state in session_mgr.sessions.items():
+                if state.is_running and state.data_engine_status == "DISCONNECTED":
+                    # Check if market is currently open for any segment
+                    market_active = False
+                    for seg in state.market_segments:
+                        if is_market_open(seg, state):
+                            market_active = True
+                            break
+                    
+                    if market_active:
+                        state.add_log("Market is OPEN but Data Engine is DISCONNECTED. Triggering auto-restart...")
+                        asyncio.create_task(start_data_engine(user_id))
+                        
+        except Exception as e:
+            logger.error(f"Error in Maintenance Loop: {e}")
+            await asyncio.sleep(10)
+
 
 
 # ---- COMMODITY LIVE DATA ENGINE (Non-intrusive) ---- #
