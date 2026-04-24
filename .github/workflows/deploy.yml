@@ -8,19 +8,40 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Deploy via SSH
-      uses: appleboy/ssh-action@v0.1.10
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USER }}
-        key: ${{ secrets.EC2_KEY }}
-        script: |
-          cd /home/ubuntu/intrad
-          git pull origin main
-          cd alice_trading
-          source venv/bin/activate
-          pip install -r requirements.txt
-          sudo systemctl restart trading-bot
-          sudo systemctl restart trading-server
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "--- STARTING DEPLOYMENT ---"
+            # Go to the repo root
+            cd /home/ubuntu/intrad || cd /home/ubuntu/alice_trading
+            
+            # Force update
+            git fetch origin main
+            git reset --hard origin/main
+            
+            # Identify where the server files actually are
+            if [ -d "alice_trading/static" ]; then
+              cd alice_trading
+            fi
+            
+            echo "Working Directory: $(pwd)"
+            grep "Algo Ai" static/index.html || echo "!!! BRANDING NOT FOUND IN HTML !!!"
+            
+            # Install dependencies
+            if [ -f "venv/bin/activate" ]; then
+               source venv/bin/activate
+            fi
+            pip3 install -r requirements.txt --quiet
+            
+            # Restart Services
+            echo "Restarting services..."
+            sudo systemctl restart trading-server || true
+            sudo systemctl restart trading-bot || true
+            
+            sudo systemctl status trading-server --no-pager
+            echo "--- DEPLOYMENT COMPLETE ---"
