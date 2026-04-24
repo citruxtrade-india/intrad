@@ -28,7 +28,7 @@ class AntiGravityAgent:
         self.PRICE_FORCE_THRESHOLD = 0.3
         self.VOLUME_FORCE_THRESHOLD = 1.5
         
-        print(f"🚀 Anti-Gravity Agent Initialized (Window: {self.window_size})")
+        print(f"Anti-Gravity Agent Initialized (Window: {self.window_size})")
 
     def _get_history(self, symbol):
         if symbol not in self.history:
@@ -113,7 +113,7 @@ class AntiGravityAgent:
                 
                 if signal:
                     now = datetime.now().strftime("%H:%M:%S")
-                    icon = "🚀 BUY " if signal['type'] == 'BUY' else "🔻 SELL"
+                    icon = "BUY " if signal['type'] == 'BUY' else "SELL"
                     color = "\033[92m" if signal['type'] == 'BUY' else "\033[91m"
                     reset = "\033[0m"
                     

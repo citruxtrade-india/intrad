@@ -1,6 +1,9 @@
 import os
 import time
-import google.generativeai as genai
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
 from .manager import AgentEvent
 
 class GuidanceAgent:
@@ -11,7 +14,7 @@ class GuidanceAgent:
         self.model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
         self.client = None
         
-        if self.api_key:
+        if self.api_key and genai:
             try:
                 self.client = genai.Client(api_key=self.api_key)
             except Exception as e:
@@ -26,7 +29,7 @@ class GuidanceAgent:
 
     def generate_ai_response(self, prompt):
         if not self.client:
-            return "AI Advisor offline: API Key missing or invalid."
+            return "AI Advisor offline: API Key missing or library not installed."
         
         # Check Cooldown
         if "PAUSED" in self.status:
@@ -40,11 +43,11 @@ class GuidanceAgent:
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    max_output_tokens=150,
-                    temperature=0.3,
-                )
+                config={
+                    "system_instruction": system_prompt,
+                    "max_output_tokens": 150,
+                    "temperature": 0.3,
+                }
             )
             # Reset status if it was paused
             if self.status == "PAUSED (QUOTA LIMIT)":

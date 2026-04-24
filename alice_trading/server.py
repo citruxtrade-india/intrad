@@ -240,10 +240,10 @@ async def start_data_engine(user_id="admin"):
                 try:
                     lp = msg.get('lp')
                     ltp = float(lp) if lp is not None and str(lp) != "0" else None
-                    if ltp is None: return # Ignore invalid ticks
+                    if ltp is None: return
 
-                    # Handle close price logic
-                    c_val = msg.get('c')
+                    # Handle close price logic: 'pc' is Previous Close in Alice Blue v2, 'c' is fallback
+                    c_val = msg.get('pc') or msg.get('c')
                     close = float(c_val) if c_val is not None and str(c_val) != "0" else ltp
                     volume = float(msg.get('v', 0))
                     
@@ -273,6 +273,8 @@ async def start_data_engine(user_id="admin"):
         import traceback
         traceback.print_exc()
         state.add_log(f"Live Feed Broker connection failed: {str(e)}")
+
+        
         if state.execution_mode in ["PAPER", "REAL"]:
             state.add_log(">>> INITIATING VIRTUAL FEED (STABILITY FALLBACK) <<<")
             start_simulation_feed(symbols_mgr, user_id=user_id)
@@ -1432,8 +1434,9 @@ async def update_capital(request: Request):
     state.add_log(f"Capital Allocation Updated: Rs.{state.metrics['total_capital']}")
     return {"status": "success"}
 
+
 @app.post("/api/v1/system/start")
-def system_start(request: Request):
+async def system_start(request: Request):
     user_id = get_session_id(request)
     state = session_mgr.get_state(user_id)
     state.is_running = True

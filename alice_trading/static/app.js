@@ -1042,6 +1042,19 @@ async function updateMarketHeader() {
                     }
                 }
 
+                // --- DYNAMIC BIAS SYNC ---
+                if (symbol === state.selectedMarket && ltp !== null) {
+                    const calculatedBias = (change < -0.05) ? 'BEARISH' : (change > 0.05 ? 'BULLISH' : 'NEUTRAL');
+                    if (!state.marketBias[symbol]) state.marketBias[symbol] = {};
+                    state.marketBias[symbol].bias = calculatedBias;
+                    // Auto-update the bias element if it exists to feel responsive
+                    const biasEl = document.getElementById('mkt-bias');
+                    if (biasEl) {
+                        biasEl.textContent = calculatedBias;
+                        biasEl.className = `val ${calculatedBias === 'BULLISH' ? 'success-text' : (calculatedBias === 'BEARISH' ? 'danger-text' : 'text-dim')}`;
+                    }
+                }
+
                 // --- QUICK EXECUTION SYNC ---
                 if (symbol === state.selectedMarket) {
                     const buySub = document.getElementById('buy-ltp-sub');

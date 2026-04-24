@@ -71,52 +71,27 @@ class AliceBlueAdapter(BrokerDataAdapter):
             return False
 
     async def _establish_websocket(self) -> bool:
-        """Helper to set up the manual WebSocket with the authenticated client."""
+        """Set up the WebSocket using the library's built-in method."""
         try:
             alice_client = self.alice
             if not alice_client or not alice_client.session_id:
                 return False
 
-            # Manual WebSocket implementation to bypass broken pya3 version hardcoded to UAT
-            import hashlib
-            import websocket
-            import threading
+            print(f"[ADAPTER] Starting library WebSocket...")
             
-            # Calculate ENC token expected by Alice Blue WebSocket
-            # Formula: SHA256(SHA256(session_id))
-            sha256_enc1 = hashlib.sha256(alice_client.session_id.encode('utf-8')).hexdigest()
-            self.enc_token = hashlib.sha256(sha256_enc1.encode('utf-8')).hexdigest()
+            # Reset connection state
+            self.is_connected = False
             
-            # Production WebSocket URL
-            ws_url = "wss://ws1.aliceblueonline.com/NorenWS/"
-            print(f"[ADAPTER] Connecting to Production WebSocket: {ws_url}")
+            # Start the library's WebSocket
+            alice_client.start_websocket(
+                socket_open_callback=self._on_library_open,
+                socket_close_callback=self._on_library_close,
+                socket_error_callback=self._on_library_error,
+                subscription_callback=self._on_library_message,
+                run_in_background=True
+            )
             
-            def run_websocket():
-                try:
-                    if not hasattr(websocket, 'WebSocketApp'):
-                        print("🛑 ERROR: 'websocket-client' is shadowed by another 'websocket' package.")
-                        print("   FIX: Run 'pip uninstall websocket websocket-client -y && pip install websocket-client'")
-                        self.is_connected = False
-                        return
-
-                    self.ws_app = websocket.WebSocketApp(
-                        ws_url,
-                        on_open=self._on_ws_open,
-                        on_message=self._on_ws_message,
-                        on_error=self._on_ws_error,
-                        on_close=self._on_ws_close
-                    )
-                    # Hardened for AWS EC2
-                    self.ws_app.run_forever(ping_interval=20, ping_timeout=10)
-                except Exception as e:
-                    print(f"[ADAPTER] WebSocket run error: {e}")
-                    self.is_connected = False
-
-            self.ws_thread = threading.Thread(target=run_websocket, daemon=True)
-            self.ws_thread.start()
-            print("[ADAPTER] WebSocket thread started.")
-            
-            # Wait for connection (up to 15 seconds)
+            # Wait for connection confirmation (up to 15 seconds)
             for i in range(30):
                 if self.is_connected: 
                     print(f"[ADAPTER] WebSocket open confirmed after {(i+1)*0.5:.1f}s")
@@ -129,85 +104,34 @@ class AliceBlueAdapter(BrokerDataAdapter):
             return self.is_connected
         except Exception as e:
             print(f"[ADAPTER] Connection error: {e}")
-            import traceback
-            traceback.print_exc()
             return False
 
-    def _on_ws_open(self, ws):
-        import json
-        print("[ADAPTER] WebSocket base connection established. Sending auth...")
-        init_con = {
-            "susertoken": self.enc_token,
-            "t": "c",
-            "actid": self.user_id + "_API",
-            "uid": self.user_id + "_API",
-            "source": "API"
-        }
-        ws.send(json.dumps(init_con))
-
-    def _on_ws_message(self, ws, message):
-        import json
-        try:
-            data = json.loads(message)
-            if data.get("s") == "OK" and data.get("t") == "ck":
-                self.is_connected = True
-                print("[ADAPTER] WebSocket Authentication Successful")
-            else:
-                # Forward feed data to the callback
-                if self.callback:
-                    self.callback(data)
-        except Exception as e:
-            print(f"[ADAPTER] Error processing message: {e}")
-
-    def _on_ws_error(self, ws, error):
-        print(f"[ADAPTER] WebSocket Error: {error}")
-        self.is_connected = False
-
-    def _on_ws_close(self, ws, close_status, close_msg):
-        print(f"[ADAPTER] WebSocket Closed: {close_status} - {close_msg}")
-        self.is_connected = False
-        if self.on_disconnect:
-            try:
-                self.on_disconnect()
-            except:
-                pass
-
-    def _on_open(self):
+    def _on_library_open(self):
+        print("[ADAPTER] WebSocket Connected (Library)")
         self.is_connected = True
-        print("[ADAPTER] WebSocket Connected")
 
-    def _on_close(self):
-        self.is_connected = False
-        print("[ADAPTER] WebSocket Closed")
-        if self.on_disconnect:
-            try:
-                self.on_disconnect()
-            except Exception as e:
-                print(f"[ADAPTER] Error calling on_disconnect: {e}")
+    def _on_library_message(self, message):
+        # Forward feed data to the callback
+        if self.callback:
+            self.callback(message)
 
-    def _on_error(self, error):
-        print(f"[ADAPTER] WebSocket Error: {error}")
+    def _on_library_error(self, error):
+        print(f"[ADAPTER] WebSocket Error (Library): {error}")
+        self.is_connected = False
+
+    def _on_library_close(self):
+        print("[ADAPTER] WebSocket Closed (Library)")
         self.is_connected = False
         if self.on_disconnect:
-            try:
-                self.on_disconnect()
-            except Exception as e:
-                print(f"[ADAPTER] Error calling on_disconnect: {e}")
+            try: self.on_disconnect()
+            except: pass
 
     async def disconnect(self):
-        if hasattr(self, 'ws_app') and self.ws_app:
-            try:
-                self.ws_app.close()
-            except:
-                pass
         if self.alice:
             try:
-                # Try multiple possible library method names just in case
-                stopper = getattr(self.alice, "stop_websocket", None) or getattr(self.alice, "close_websocket", None)
-                if callable(stopper):
-                    stopper()
-            except Exception as e:
-                print(f"[ADAPTER] Error during disconnect: {e}")
+                self.alice.stop_websocket()
+            except:
+                pass
         self.is_connected = False
 
     async def subscribe(self, symbols: List[Dict[str, Any]]):

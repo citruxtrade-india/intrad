@@ -1,17 +1,34 @@
 [Unit]
-Description=Antigravity Trading Server
+Description=Anti-Gravity Institutional Trading Server
 After=network.target
+Wants=network-online.target
 
 [Service]
+Type=simple
 User=ubuntu
 Group=ubuntu
-WorkingDirectory=/home/ubuntu/intrad/alice_trading
-Environment="PATH=/home/ubuntu/intrad/alice_trading/venv/bin"
-ExecStart=/home/ubuntu/intrad/alice_trading/venv/bin/python main.py
+WorkingDirectory=/home/ubuntu/alice_trading
+
+# Load environment variables from .env file
+EnvironmentFile=/home/ubuntu/alice_trading/.env
+
+# Use system Python 3.7 (or venv if you create one)
+ExecStart=/usr/bin/python3 /home/ubuntu/alice_trading/server.py
+
+# Auto-restart on any crash, with a 10s delay
 Restart=always
-RestartSec=5
-StandardOutput=append:/home/ubuntu/intrad/alice_trading/app.log
-StandardError=append:/home/ubuntu/intrad/alice_trading/app.log
+RestartSec=10
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+# Logging — tail with: journalctl -u trading-server -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trading-server
+
+# Resource limits
+TimeoutStartSec=30
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
